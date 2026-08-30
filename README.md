@@ -113,7 +113,24 @@ AGY_PERMISSION_MODE=full
 
 加入 `--dangerously-skip-permissions`，所有 AGY 工具操作不再逐次審核。只應用於可快照、可重建且沒有不必要正式環境密鑰的專用 VM。
 
-不要替 Bot 使用者設定 `NOPASSWD:ALL`。若使用者位於 Docker 群組，也應理解 Docker 控制權通常足以取得接近 root 的主機控制能力。
+### 關於 sudo 權限與 NOPASSWD 設定（選用進階功能）
+
+**預設情況下，Bot 正常運作完全不需要 `sudo` 權限**（一般問答、定時排程、SQLite 資料庫、磁碟與 Docker 查詢皆可在一般使用者權限下執行）。
+
+若您在**私人專用、已建立快照且可隨時重建**的測試 VM 上，希望讓 AGY 具備自動執行系統管理命令（例如 `sudo apt update`、安裝套件或重啟 systemd 服務）的能力，可手動設定免密碼 sudo：
+
+```bash
+# 啟用免密碼 sudo（僅限專用測試/維運 VM）
+echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee "/etc/sudoers.d/$USER" && sudo chmod 0440 "/etc/sudoers.d/$USER"
+```
+
+> [!CAUTION]
+> 啟用 `NOPASSWD:ALL` 搭配 Full 模式代表 AGY 具備完整的 root 控制能力。**強烈建議在完成特定維運或測試任務後立即執行還原**，避免主機長期暴露在最高權限風險中。
+
+```bash
+# 還原免密碼 sudo 設定（回復為需輸入密碼的預設安全狀態）
+sudo rm -f "/etc/sudoers.d/$USER"
+```
 
 ## 安裝
 

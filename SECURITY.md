@@ -23,7 +23,7 @@ The following are outside the project's security guarantees:
 - Prefer Safe mode. Use Full only on a dedicated, recoverable VM.
 - Remember that scheduled tasks run unattended. In Full mode they inherit automatic tool approval, so review the generated prompt before confirming a schedule.
 - Never place tokens, passwords, private keys or other credentials in a scheduled-task prompt; prompts are persisted in SQLite.
-- Do not grant `NOPASSWD:ALL` to the service user.
+- Avoid granting `NOPASSWD:ALL` to the service user. If temporarily enabled for root-level VM maintenance, revoke it immediately after use (`sudo rm -f /etc/sudoers.d/$USER`).
 - Keep snapshots or tested backups and minimize credentials stored on the VM.
 - Rotate the Bot Token immediately if it may have leaked.
 

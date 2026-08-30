@@ -1,6 +1,6 @@
 # 給 AI Agent 的 Ubuntu VM 安裝指示
 
-本專案只以一般 Ubuntu 使用者搭配 systemd 為正式支援目標。不要直接以 root 執行 Bot，也不要替使用者新增 `NOPASSWD:ALL`。
+本專案只以一般 Ubuntu 使用者搭配 systemd 為正式支援目標。不要直接以 root 執行 Bot，也不要主動替使用者新增 `NOPASSWD:ALL`（若使用者因維運需求自行開啟，請提醒其於任務完成後執行 `sudo rm -f /etc/sudoers.d/$USER` 還原）。
 
 ## 安裝 SOP
 
