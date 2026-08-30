@@ -1,0 +1,28 @@
+# Secrets and Environment Variables (機密資訊，絕對排除)
+.env
+*.env
+*.pem
+*.key
+*.token
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Logs
+*.log
+
+# OS / Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
