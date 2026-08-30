@@ -206,7 +206,7 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
     schedule_min_interval_minutes = _positive_int(
         env.get("AGY_SCHEDULE_MIN_INTERVAL_MINUTES", "15"),
         "AGY_SCHEDULE_MIN_INTERVAL_MINUTES",
-        5,
+        1,
         1440,
     )
     schedule_max_tasks = _positive_int(
