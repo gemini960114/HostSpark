@@ -7,7 +7,9 @@ from pathlib import Path
 
 from agy_bot_core import (
     ConfigError,
+    ProcessResult,
     compose_agy_prompt,
+    format_result_message,
     load_config,
     md_to_telegram_html,
     redact_sensitive,
@@ -90,6 +92,21 @@ class TextTests(unittest.TestCase):
     def test_html_is_escaped(self) -> None:
         self.assertEqual(md_to_telegram_html("<script>"), "&lt;script&gt;")
         self.assertEqual(md_to_telegram_html("**ok**"), "<b>ok</b>")
+
+    def test_permission_denied_friendly_message(self) -> None:
+        result = ProcessResult(
+            returncode=0,
+            stdout="",
+            stderr='jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied. Alternatively, re-run with --dangerously-skip-permissions to auto-approve all tools.',
+        )
+        msg = format_result_message(result)
+        self.assertIn("很抱歉", msg)
+        self.assertIn("Safe 權限模式", msg)
+        self.assertIn("AGY_PERMISSION_MODE", msg)
+
+    def test_normal_stdout_message(self) -> None:
+        result = ProcessResult(returncode=0, stdout="Hello world", stderr="")
+        self.assertEqual(format_result_message(result), "Hello world")
 
 
 class ProcessTests(unittest.TestCase):

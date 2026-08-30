@@ -267,3 +267,42 @@ def md_to_telegram_html(text: str) -> str:
         text = text.replace(f"\x00CB_{idx}\x00", tag)
 
     return text
+
+
+def is_headless_permission_denied(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    return (
+        "headless mode cannot prompt" in lowered
+        or "auto-denied" in lowered
+        or "--dangerously-skip-permissions" in lowered
+    )
+
+
+def format_result_message(result: ProcessResult) -> str:
+    truncation_note = "\n\n⚠️ 輸出過長，僅顯示前段內容。" if (
+        result.stdout_truncated or result.stderr_truncated
+    ) else ""
+    if result.timed_out:
+        return "⚠️ **AGY 執行逾時，程序已停止。**" + truncation_note
+
+    combined_output = f"{result.stderr}\n{result.stdout}".strip()
+    if is_headless_permission_denied(combined_output):
+        return (
+            "⚠️ **很抱歉，此操作因 Safe 權限模式限制無法完成。**\n\n"
+            "目前機器人運行於 `Safe` 權限模式，執行系統工具或指令時需要終端機互動確認授權；"
+            "但因 Telegram 於背景非互動環境運作，無法向您彈出授權視窗，因此該工具權限已被自動拒絕。\n\n"
+            "💡 **如何解除限制？**\n"
+            "若要讓機器人能夠直接執行指令與排查任務，請在 `.env` 中將 `AGY_PERMISSION_MODE` 改為 `full` 並重啟服務："
+            "\n```bash\nsudo systemctl restart agy-telegram.service\n```"
+        )
+
+    if result.returncode != 0:
+        details = result.stderr or result.stdout or "沒有錯誤詳情"
+        return f"❌ **AGY 執行失敗（exit {result.returncode}）**\n\n{details}{truncation_note}"
+    if result.stdout:
+        return result.stdout + truncation_note
+    if result.stderr:
+        return f"⚠️ AGY 沒有標準輸出：\n\n{result.stderr}{truncation_note}"
+    return "✅ 執行完成。"

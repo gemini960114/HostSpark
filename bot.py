@@ -22,6 +22,7 @@ from agy_bot_core import (
     ConfigError,
     ProcessResult,
     compose_agy_prompt,
+    format_result_message,
     load_config,
     md_to_telegram_html,
     redact_sensitive,
@@ -76,19 +77,7 @@ async def run_agy(user_text: str, *, continue_conversation: bool) -> ProcessResu
 
 
 def result_message(result: ProcessResult) -> str:
-    truncation_note = "\n\n⚠️ 輸出過長，僅顯示前段內容。" if (
-        result.stdout_truncated or result.stderr_truncated
-    ) else ""
-    if result.timed_out:
-        return "⚠️ **AGY 執行逾時，程序已停止。**" + truncation_note
-    if result.returncode != 0:
-        details = result.stderr or result.stdout or "沒有錯誤詳情"
-        return f"❌ **AGY 執行失敗（exit {result.returncode}）**\n\n{details}{truncation_note}"
-    if result.stdout:
-        return result.stdout + truncation_note
-    if result.stderr:
-        return f"⚠️ AGY 沒有標準輸出：\n\n{result.stderr}{truncation_note}"
-    return "✅ 執行完成。"
+    return format_result_message(result)
 
 
 async def send_formatted_response(message, text: str) -> None:
