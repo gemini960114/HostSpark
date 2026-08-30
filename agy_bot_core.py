@@ -17,6 +17,7 @@ SECRET_VALUE_RE = re.compile(
 )
 BOT_TOKEN_RE = re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b")
 BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
+DEFAULT_WAITING_MESSAGE = "⏳ 國網AI助理 正在思考與執行中，請稍候..."
 
 
 class ConfigError(ValueError):
@@ -37,6 +38,7 @@ class BotConfig:
     schedule_timezone: str
     schedule_min_interval_minutes: int
     schedule_max_tasks: int
+    waiting_message: str = DEFAULT_WAITING_MESSAGE
 
 
 @dataclass(frozen=True)
@@ -216,6 +218,10 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         100,
     )
 
+    waiting_message = (
+        env.get("AGY_WAITING_MESSAGE", "").strip() or DEFAULT_WAITING_MESSAGE
+    )
+
     return BotConfig(
         bot_token=bot_token,
         allowed_user_id=allowed_user_id,
@@ -229,6 +235,7 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         schedule_timezone=schedule_timezone,
         schedule_min_interval_minutes=schedule_min_interval_minutes,
         schedule_max_tasks=schedule_max_tasks,
+        waiting_message=waiting_message,
     )
 
 

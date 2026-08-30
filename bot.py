@@ -251,10 +251,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not update.message or not update.message.text:
         return
 
-    status_message = await update.message.reply_text(
-        "⏳ <code>agy</code> 正在思考與執行中，請稍候...",
-        parse_mode=ParseMode.HTML,
-    )
+    config = get_config()
+    try:
+        status_message = await update.message.reply_text(
+            config.waiting_message,
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception:
+        status_message = await update.message.reply_text(
+            config.waiting_message,
+        )
     chat_id = update.effective_chat.id
 
     async def keep_typing() -> None:

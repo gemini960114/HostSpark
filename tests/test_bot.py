@@ -305,6 +305,33 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stored.last_status, "failed")
         self.assertIn("Permission denied", stored.last_error)
 
+    async def test_handle_message_uses_configured_waiting_message(self) -> None:
+        user = SimpleNamespace(id=123456789)
+        status_msg = SimpleNamespace(
+            delete=AsyncMock(),
+            edit_text=AsyncMock(),
+        )
+        msg = SimpleNamespace(
+            text="你好",
+            reply_text=AsyncMock(return_value=status_msg),
+        )
+        update = SimpleNamespace(
+            effective_user=user,
+            effective_chat=SimpleNamespace(id=123456789),
+            message=msg,
+        )
+        bot_mock = SimpleNamespace(send_chat_action=AsyncMock())
+        context = SimpleNamespace(bot=bot_mock)
+
+        result = ProcessResult(0, "你好！我是國網AI助理", "")
+        with patch("bot.run_agy", AsyncMock(return_value=result)):
+            await bot.handle_message(update, context)
+
+        msg.reply_text.assert_awaited()
+        first_call = msg.reply_text.await_args_list[0]
+        self.assertEqual(first_call.args[0], bot.CONFIG.waiting_message)
+        status_msg.delete.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()
