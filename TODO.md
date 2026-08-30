@@ -5,9 +5,11 @@
 ## 目前狀態
 
 - Windows 開發與模擬測試：已完成。
-- Ubuntu、AGY CLI、Telegram Bot API、systemd 端到端測試：尚未執行。
-- Git commit／push：尚未執行。
-- 正式 VM 部署：尚未執行。
+- Ubuntu 依賴安裝、測試與設定驗證：已完成（32 項單元與整合測試全數通過，`pip check` 無異常，`bot.py --check-config` 成功）。
+- AGY CLI 整合驗證：已完成（`agy` 1.1.22 headless 測試通過，支援 `--add-dir` 與 `--continue`）。
+- systemd 服務部署與排程器啟動：已完成（`agy-telegram.service` 正常運行，SQLite 資料庫已建立）。
+- Git commit／push：排程核心程式碼已 commit 並 push 至 main 分支。
+- Telegram 實際操作端到端驗收：待管理員透過 Telegram App 依步驟驗收。
 
 ## 已完成的程式功能
 
@@ -500,21 +502,21 @@ sudo journalctl -u agy-telegram.service -f
 
 只有下列項目全部符合，才能將 Linux 驗收標記完成：
 
-- [ ] Ubuntu 依賴安裝成功，`pip check` 通過。
-- [ ] AGY headless 執行成功且支援 `--add-dir`。
-- [ ] 完整測試與 `--check-config` 通過。
-- [ ] systemd service 穩定運行。
-- [ ] 舊有 `/status`、一般問答、`/clear` 沒有回歸。
-- [ ] 未授權 Telegram 帳號無法操作。
-- [ ] 排程可新增、預覽、取消與確認。
-- [ ] 排程可列出、查看、暫停、恢復與刪除。
-- [ ] Bot 可在沒有人工提問時主動回報。
-- [ ] 時間變數替換正確。
-- [ ] `[NO_REPORT]` 可抑制訊息。
-- [ ] Bot 重啟後排程仍存在。
-- [ ] 排程不污染一般 `--continue` 對話。
-- [ ] Safe 權限拒絕能正確記錄。
-- [ ] 連續三次失敗會自動暫停。
-- [ ] 日誌未出現未處理例外或秘密內容。
+- [x] Ubuntu 依賴安裝成功，`pip check` 通過。
+- [x] AGY headless 執行成功且支援 `--add-dir`。
+- [x] 完整測試與 `--check-config` 通過。
+- [x] systemd service 穩定運行（排程器已啟動）。
+- [ ] 舊有 `/status`、一般問答、`/clear` 沒有回歸。（待 Telegram 操作）
+- [ ] 未授權 Telegram 帳號無法操作。（待 Telegram 操作）
+- [ ] 排程可新增、預覽、取消與確認。（待 Telegram 操作）
+- [ ] 排程可列出、查看、暫停、恢復與刪除。（待 Telegram 操作）
+- [ ] Bot 可在沒有人工提問時主動回報。（待 Telegram 操作）
+- [ ] 時間變數替換正確。（待 Telegram 操作）
+- [ ] `[NO_REPORT]` 可抑制訊息。（待 Telegram 操作）
+- [ ] Bot 重啟後排程仍存在。（已完成單元測試，待 Telegram 操作）
+- [ ] 排程不污染一般 `--continue` 對話。（待 Telegram 操作）
+- [ ] Safe 權限拒絕能正確記錄。（待 Telegram 操作）
+- [ ] 連續三次失敗會自動暫停。（已完成單元測試，待 Telegram 操作）
+- [ ] 日誌未出現未處理例外或秘密內容。（已在運行日誌中確認）
 - [ ] 測試排程與測試資料已清理。
 - [ ] 最終變更已 commit 並 push。
