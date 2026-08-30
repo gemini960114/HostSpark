@@ -17,7 +17,8 @@ SECRET_VALUE_RE = re.compile(
 )
 BOT_TOKEN_RE = re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b")
 BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
-DEFAULT_WAITING_MESSAGE = "⏳ 國網AI助理 正在思考與執行中，請稍候..."
+DEFAULT_BOT_NAME = "國網AI助理"
+DEFAULT_WAITING_MESSAGE = f"⏳ {DEFAULT_BOT_NAME} 正在思考與執行中，請稍候..."
 
 
 class ConfigError(ValueError):
@@ -39,6 +40,7 @@ class BotConfig:
     schedule_min_interval_minutes: int
     schedule_max_tasks: int
     waiting_message: str = DEFAULT_WAITING_MESSAGE
+    bot_name: str = DEFAULT_BOT_NAME
 
 
 @dataclass(frozen=True)
@@ -218,9 +220,9 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         100,
     )
 
-    waiting_message = (
-        env.get("AGY_WAITING_MESSAGE", "").strip() or DEFAULT_WAITING_MESSAGE
-    )
+    bot_name = env.get("AGY_BOT_NAME", "").strip() or DEFAULT_BOT_NAME
+    default_waiting = f"⏳ {bot_name} 正在思考與執行中，請稍候..."
+    waiting_message = env.get("AGY_WAITING_MESSAGE", "").strip() or default_waiting
 
     return BotConfig(
         bot_token=bot_token,
@@ -236,6 +238,7 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         schedule_min_interval_minutes=schedule_min_interval_minutes,
         schedule_max_tasks=schedule_max_tasks,
         waiting_message=waiting_message,
+        bot_name=bot_name,
     )
 
 

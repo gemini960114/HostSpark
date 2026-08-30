@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import os
 import secrets
@@ -167,10 +168,12 @@ async def reject_unauthorized(update: Update) -> bool:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await reject_unauthorized(update):
         return
-    mode = get_config().permission_mode
+    config = get_config()
+    mode = config.permission_mode
     mode_text = "Full（不逐次審核）" if mode == "full" else "Safe（遵循 AGY 權限規則）"
+    bot_name = html.escape(config.bot_name)
     msg = (
-        "🤖 <b>Antigravity CLI (agy) 助手在線中！</b>\n\n"
+        f"🤖 <b>{bot_name} 在線中！</b>\n\n"
         f"• 執行模式：<b>{mode_text}</b>\n"
         "• <code>/status</code> - 查看 VM 健康狀況\n"
         "• <code>/clear</code> - 開啟全新工作階段\n\n"

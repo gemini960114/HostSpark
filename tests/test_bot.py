@@ -133,7 +133,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         await bot.start_command(update, context)
         message.reply_text.assert_awaited_once()
         sent_text = message.reply_text.await_args.args[0]
-        self.assertIn("Antigravity CLI (agy) 助手在線中", sent_text)
+        self.assertIn(f"{bot.CONFIG.bot_name} 在線中", sent_text)
         self.assertIn("Full（不逐次審核）", sent_text)
 
     async def test_schedule_help_command(self) -> None:
