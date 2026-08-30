@@ -59,16 +59,36 @@ AI 就會在 30 秒內全自動為您建立隔離環境、安裝依賴、配置�
 
 ---
 
-## 🛡️ 針對 VM 控制的極致安全防護 (Security)
+## 🛡️ 針對 VM 控制的安全架構 (Security Architecture)
 
-由於本系統具備控制整台 VM 的強大能力，安全性設計為最高優先級：
+本系統預設遵循 **「最小權限原則」**，兼顧極致安全與日常便利：
 
 1. **🚫 零外部監聽埠 (Zero Inbound Ports)**：
    - 採用 Telegram 長輪詢（Long Polling 出站加密連線），**VM 不需要對外開放任何額外 Port 或 Webhook**，駭客無法透過網路掃描攻擊機器人。
 2. **🔐 專屬 User ID 白名單鎖定 (Strict Whitelist)**：
    - 每一則傳入訊息皆嚴格比對使用者的 Telegram 數字 ID。**非白名單內的陌生人一律直接拒絕且不觸發任何指令**。
-3. **👤 系統權限隔離 (User Permission Isolation)**：
-   - 機器人預設以一般使用者身分（非 root）運行，配合 Linux 原生權限架構，保障 VM 核心系統安全。
+3. **👤 預設非 Root 權限隔離**：
+   - 機器人預設以一般使用者（`ubuntu`）身分運行。
+   - 因為使用者已具備 `docker` 群組權限，日常 90% 的維護（Docker 重啟、日誌分析、Web 程式修改）皆**原生免 Sudo 密碼即可順暢操作**。
+
+---
+
+## ⚠️ 進階特殊用法：開啟 AI 最大 Root 全權模式（不建議）
+
+> [!WARNING]
+> **資安警告 (Security Notice)**：  
+> 預設情況下，AI 無法透過 Telegram 執行需要 `sudo` 密碼的高危指令（如 `apt install`、修改 `/etc/` 底層設定、新增刪除系統帳號）。  
+> 若您希望賦予 Telegram AI **完全不受限的最高 Root 超級管理員權限**（讓 AI 在手機端可全自動執行 `sudo apt install` 或修改系統核心配置），可手動開啟 Sudo 免密碼。**生產環境請審慎評估資安風險！**
+
+### 1. 開啟最大 Root 全權模式：
+```bash
+echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/$USER && sudo chmod 0440 /etc/sudoers.d/$USER
+```
+
+### 2. 恢復標準安全模式（取消免密碼，推薦）：
+```bash
+sudo rm -f /etc/sudoers.d/$USER
+```
 
 ---
 
