@@ -5,7 +5,7 @@
 
 一個專為私人 Ubuntu VM 設計的輕量 **Telegram → Antigravity CLI (`agy`) 橋接器**。正式支援目標是國網、晶創雲等採用一般 Ubuntu 使用者與 systemd 的 VM。
 
-本專案不是另一套 AI Agent 框架，也不自行實作模型、推理引擎或電腦控制工具。Telegram 負責提供手機通訊介面，本 Bot 只負責單一管理員驗證、請求轉送、timeout、錯誤處理及訊息格式；真正的 AI 推理、工具調用、檔案操作與系統控制能力均由 AGY 提供。
+本專案不是另一套 AI Agent 框架，也不自行實作模型、推理引擎或電腦控制工具。Telegram 負責提供手機通訊介面，本 Bot 只負責單一管理員驗證、請求轉送、定時觸發、timeout、錯誤處理及訊息格式；真正的 AI 推理、工具調用、檔案操作與系統控制能力均由 AGY 提供。
 
 ```text
 Telegram
@@ -31,7 +31,7 @@ Ubuntu VM（檔案／Docker／服務／系統資源）
 - 希望部署簡單、依賴少，而且容易閱讀與稽核橋接程式。
 - 不需要額外的多模型 Gateway、長期記憶、多 Agent 或多通訊平台。
 
-這個專案不打算取代 OpenClaw、Hermes 等完整 Agent 平台，也不會重複開發它們提供的多模型、多平台、記憶、排程或 Skills 生態。若需求是完整個人 AI 助理平台，應直接選擇成熟框架；若需求是單純、直接地從 Telegram 驅動 AGY，則這個 Bridge 提供較小且清楚的解決方案。
+這個專案不打算取代 OpenClaw、Hermes 等完整 Agent 平台，也不會重複開發它們提供的多模型、多平台、長期記憶、複雜工作流或 Skills 生態。內建排程只負責依 cron 定時觸發一段獨立 AGY prompt 並回報 Telegram，不是通用工作流引擎。若需求是完整個人 AI 助理平台，應直接選擇成熟框架；若需求是單純、直接地從 Telegram 即時或定時驅動 AGY，則這個 Bridge 提供較小且清楚的解決方案。
 
 ## 功能
 
@@ -41,6 +41,8 @@ Ubuntu VM（檔案／Docker／服務／系統資源）
 - 支援部署者自訂 `AGY_RULE_PROMPT`。
 - `/status` 顯示 uptime、磁碟與記憶體；偵測到 Docker 時才附加容器狀態。
 - `/clear` 建立新的 AGY 對話工作階段。
+- 支援持久化 AGY 定時任務，可新增、預覽、確認、列出、查看、暫停、恢復與刪除。
+- 定時任務到期後主動執行 AGY，並將結果傳送給管理員。
 - 子程序具備硬 timeout、輸出容量限制、錯誤碼判斷與常見秘密遮罩。
 
 目前只處理 Telegram 文字訊息，不支援語音。
@@ -83,6 +85,12 @@ AGY_WORKDIR=
 AGY_RULE_PROMPT="只操作指定的專案目錄；修改前先說明；使用繁體中文回覆。"
 AGY_TIMEOUT_SECONDS=600
 AGY_MAX_OUTPUT_BYTES=1000000
+
+# 定時任務設定
+AGY_SCHEDULE_TIMEZONE=Asia/Taipei
+AGY_SCHEDULE_DB_PATH=
+AGY_SCHEDULE_MIN_INTERVAL_MINUTES=15
+AGY_SCHEDULE_MAX_TASKS=20
 ```
 
 `AGY_RULE_PROMPT` 是行為提示，不能取代 AGY permissions、sandbox 或 Ubuntu 權限隔離。
@@ -175,6 +183,10 @@ AGY_WORKDIR=
 AGY_RULE_PROMPT=
 AGY_TIMEOUT_SECONDS=600
 AGY_MAX_OUTPUT_BYTES=1000000
+AGY_SCHEDULE_TIMEZONE=Asia/Taipei
+AGY_SCHEDULE_DB_PATH=
+AGY_SCHEDULE_MIN_INTERVAL_MINUTES=15
+AGY_SCHEDULE_MAX_TASKS=20
 ```
 
 舊版固定使用 `--dangerously-skip-permissions`。若要維持相同行為，可明確設定 `AGY_PERMISSION_MODE=full`；若希望使用較保守的新預設，使用 `safe`。
@@ -227,6 +239,11 @@ Bot Token 等同 Bot 的控制憑證。任何取得 Token 的人都可能控制 
 - `/start` 或 `/help`：顯示目前執行模式與指令。
 - `/status`：顯示 VM 健康狀態；Docker 為選用項目。
 - `/clear`：建立新的 AGY 工作階段。
+- `/schedule_help`：顯示 cron 格式、範例與可用變數。
+- `/schedule_add`：讓 AGY 整理任務 prompt，預覽確認後建立排程。
+- `/schedule_list`：列出所有排程與下次執行時間。
+- `/schedule_show ID`：查看原始要求、完整 prompt 與執行狀態。
+- `/schedule_pause ID`、`/schedule_resume ID`、`/schedule_delete ID`：管理排程。
 - 一般文字：交給 AGY 執行。
 
 ```bash
@@ -236,12 +253,58 @@ sudo systemctl restart agy-telegram.service
 sudo systemctl stop agy-telegram.service
 ```
 
+## AGY 定時任務
+
+定時任務使用標準五欄 cron 表達式，時間依 `AGY_SCHEDULE_TIMEZONE` 解讀。新增時，Bot 會先要求 AGY 將原始需求整理成每次皆可獨立執行的完整 prompt；只有管理員在 Telegram 預覽並按下「確認建立」後才會啟用。
+
+```text
+/schedule_add 分 時 日 月 週 任務內容
+```
+
+例如每小時整點查詢一次天氣：
+
+```text
+/schedule_add 0 * * * * 查詢台北目前天氣與未來三小時降雨機率，簡短回報
+```
+
+例如每天 09:00 檢查 VM：
+
+```text
+/schedule_add 0 9 * * * 檢查 VM、服務與 Docker 狀態，摘要需要注意的異常
+```
+
+常用 cron：
+
+| cron | 執行時間 |
+|---|---|
+| `0 * * * *` | 每小時整點 |
+| `*/30 * * * *` | 每 30 分鐘 |
+| `0 9 * * *` | 每天 09:00 |
+| `0 9 * * 1-5` | 週一至週五 09:00 |
+
+可在 prompt 使用以下執行時變數：
+
+- `{{now}}`：實際執行時間。
+- `{{date}}`、`{{time}}`：執行日期與時間。
+- `{{timezone}}`：排程時區。
+- `{{scheduled_at}}`：原訂執行時間。
+- `{{run_number}}`：包含本次的執行序號。
+
+其他未知的 `{{變數}}` 會原樣保留，交由 AGY 或使用者的工具處理。若任務要求「沒有異常就不要通知」，AGY 整理後的 prompt 會要求無須通知時只輸出 `[NO_REPORT]`，Bot 收到該精確值便不傳送訊息。
+
+排程資料預設保存在 `~/.local/state/agy-telegram-bot/schedules.db`。Bot 重啟後仍會保留，但停機期間錯過的多次執行只會在恢復後執行一次，避免集中補跑。每個排程使用獨立 AGY workspace，並透過 `--add-dir` 存取主要 `AGY_WORKDIR`，不會改變一般問答使用 `--continue` 的最近對話。
+
+所有排程與人工問答共用單一 AGY 執行鎖；同一時間只執行一項任務。連續失敗三次的排程會自動暫停並通知管理員。最短間隔與數量上限可由 `.env` 設定。
+
+> [!WARNING]
+> 定時任務會在無人監看時執行。實際執行沿用 `AGY_PERMISSION_MODE`；Full 模式也會自動核准排程發起的工具操作。不要把 Token、密碼、私鑰或其他憑證寫入排程，因為原始要求與完整 prompt 會保存在 SQLite。
+
 ## 設定驗證與測試
 
 ```bash
 venv/bin/python bot.py --check-config
 python -m unittest discover -s tests -v
-python -m py_compile bot.py agy_bot_core.py
+python -m py_compile bot.py agy_bot_core.py schedule_store.py
 ```
 
 ## 隱私提醒

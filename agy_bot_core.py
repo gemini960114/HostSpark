@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from contextlib import suppress
 from pathlib import Path
 from typing import Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 TELEGRAM_TOKEN_RE = re.compile(r"^\d+:[A-Za-z0-9_-]{20,}$")
@@ -32,6 +33,10 @@ class BotConfig:
     rule_prompt: str
     timeout_seconds: int
     max_output_bytes: int
+    schedule_db_path: Path
+    schedule_timezone: str
+    schedule_min_interval_minutes: int
+    schedule_max_tasks: int
 
 
 @dataclass(frozen=True)
@@ -185,6 +190,32 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         10_000_000,
     )
 
+    schedule_timezone = env.get("AGY_SCHEDULE_TIMEZONE", "Asia/Taipei").strip()
+    try:
+        ZoneInfo(schedule_timezone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ConfigError(f"AGY_SCHEDULE_TIMEZONE 不是有效的 IANA 時區：{schedule_timezone}") from exc
+
+    schedule_db_path = Path(
+        env.get("AGY_SCHEDULE_DB_PATH", "").strip()
+        or Path.home() / ".local" / "state" / "agy-telegram-bot" / "schedules.db"
+    ).expanduser().resolve()
+    if schedule_db_path.exists() and not schedule_db_path.is_file():
+        raise ConfigError(f"AGY_SCHEDULE_DB_PATH 不是檔案：{schedule_db_path}")
+
+    schedule_min_interval_minutes = _positive_int(
+        env.get("AGY_SCHEDULE_MIN_INTERVAL_MINUTES", "15"),
+        "AGY_SCHEDULE_MIN_INTERVAL_MINUTES",
+        5,
+        1440,
+    )
+    schedule_max_tasks = _positive_int(
+        env.get("AGY_SCHEDULE_MAX_TASKS", "20"),
+        "AGY_SCHEDULE_MAX_TASKS",
+        1,
+        100,
+    )
+
     return BotConfig(
         bot_token=bot_token,
         allowed_user_id=allowed_user_id,
@@ -194,6 +225,10 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
         rule_prompt=env.get("AGY_RULE_PROMPT", "").strip(),
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
+        schedule_db_path=schedule_db_path,
+        schedule_timezone=schedule_timezone,
+        schedule_min_interval_minutes=schedule_min_interval_minutes,
+        schedule_max_tasks=schedule_max_tasks,
     )
 
 

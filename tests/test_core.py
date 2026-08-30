@@ -56,6 +56,13 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(ConfigError):
                 load_config(env)
 
+    def test_invalid_schedule_timezone_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            env = self.valid_env(workdir)
+            env["AGY_SCHEDULE_TIMEZONE"] = "not/a-real-timezone"
+            with self.assertRaisesRegex(ConfigError, "IANA 時區"):
+                load_config(env)
+
 
 class TextTests(unittest.TestCase):
     def test_rule_prompt_is_prepended(self) -> None:

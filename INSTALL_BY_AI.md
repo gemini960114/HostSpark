@@ -23,6 +23,7 @@
    - `ALLOWED_USER_ID`
    - `AGY_PERMISSION_MODE=safe` 或 `full`
    - 需要時才設定 `AGY_BIN`、`AGY_WORKDIR`、`AGY_RULE_PROMPT`
+   - 確認 `AGY_SCHEDULE_TIMEZONE` 符合使用者所在地
 
 4. 向使用者說明：`full` 會讓 AGY 自動核准所有工具操作；rule prompt 不能取代真正的權限隔離。必須由使用者明確選擇，不可自行推定為 `full`。
 

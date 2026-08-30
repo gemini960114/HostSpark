@@ -4,6 +4,9 @@
 *.pem
 *.key
 *.token
+schedules.db
+schedules.db-wal
+schedules.db-shm
 
 # Python Virtual Environments
 venv/
