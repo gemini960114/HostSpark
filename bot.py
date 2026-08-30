@@ -333,7 +333,10 @@ async def schedule_help_command(update: Update, context: ContextTypes.DEFAULT_TY
         "`/schedule_resume ID`\n"
         "`/schedule_delete ID`\n\n"
         "可用變數：`{{now}}`、`{{date}}`、`{{time}}`、`{{timezone}}`、"
-        "`{{scheduled_at}}`、`{{run_number}}`。"
+        "`{{scheduled_at}}`、`{{run_number}}`。\n\n"
+        "💡 **重要觀念**：\n"
+        "• 管理排程（查/停/啟/刪）請務必使用 `/schedule_*` 指令。\n"
+        "• 排程執行的「任務內容」則完全支援自然語言描述。"
     )
     await send_formatted_response(update.message, message)
 
