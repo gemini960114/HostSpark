@@ -7,6 +7,23 @@
 
 ---
 
+## ⚡ 極速 3 步驟安裝（交給 AI 全自動完成）
+
+日後您若開啟了任何一台全新 Linux 伺服器，只需執行：
+
+```bash
+git clone https://github.com/gemini960114/agy-telegram-bot.git
+cd agy-telegram-bot
+agy
+```
+
+然後在 `agy` 對話視窗對 AI 說一句話：
+> **「請閱讀 `INSTALL_BY_AI.md`，使用 `uv` 幫我安裝並啟動 Telegram 機器人服務，我的 Token 是 `xxxx`」**
+
+AI 就會在 30 秒內全自動為您建立隔離環境、安裝依賴、配置權限並啟動開機自啟系統服務！
+
+---
+
 ## 📖 專案簡介 (Overview)
 
 **`agy-telegram-bot`** 是一個專為 **雲端虛擬機（Linux VM / VPS / 實體伺服器）** 量身打造的 AI 遙控運維橋接系統。
@@ -68,20 +85,13 @@
 
 ---
 
-## 🚀 部署安裝方式 (Installation)
+## 🚀 手動部署方式 (Manual Installation)
 
-### 方式 A：交給 VM 上的 AI 全自動安裝（最推薦 ⭐⭐⭐⭐⭐）
-將本專案複製至您的 VM 後，啟動 `agy` 直接對 AI 說：
-> **「請閱讀當前目錄下的 `INSTALL_BY_AI.md`，使用 `uv` 幫我安裝並啟動 Telegram VM 遙控服務，我的 Token 是 `xxxx`」**
+如果您不透過 AI，亦可手動執行腳本安裝：
 
-AI 就會自動在 VM 上建立虛擬環境、安裝依賴、配置權限並註冊開機自啟服務！
-
----
-
-### 方式 B：手動一鍵腳本安裝
 ```bash
 # 1. 進入專案目錄並執行安裝腳本
-cd telegram_agy_bot
+cd agy-telegram-bot
 chmod +x install.sh
 ./install.sh
 
