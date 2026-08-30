@@ -99,14 +99,36 @@ class TextTests(unittest.TestCase):
             stdout="",
             stderr='jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied. Alternatively, re-run with --dangerously-skip-permissions to auto-approve all tools.',
         )
-        msg = format_result_message(result)
+        msg = format_result_message(result, "safe")
         self.assertIn("很抱歉", msg)
         self.assertIn("Safe 權限模式", msg)
         self.assertIn("AGY_PERMISSION_MODE", msg)
 
     def test_normal_stdout_message(self) -> None:
         result = ProcessResult(returncode=0, stdout="Hello world", stderr="")
-        self.assertEqual(format_result_message(result), "Hello world")
+        self.assertEqual(format_result_message(result, "safe"), "Hello world")
+
+    def test_flag_mentioned_in_normal_stdout_is_not_misclassified(self) -> None:
+        stdout = "安全說明：不要使用 --dangerously-skip-permissions。"
+        result = ProcessResult(returncode=0, stdout=stdout, stderr="")
+        self.assertEqual(format_result_message(result, "safe"), stdout)
+
+    def test_unrelated_error_mentioning_flag_is_not_misclassified(self) -> None:
+        stderr = "unrelated error; try --dangerously-skip-permissions"
+        result = ProcessResult(returncode=1, stdout="", stderr=stderr)
+        msg = format_result_message(result, "safe")
+        self.assertIn("AGY 執行失敗", msg)
+        self.assertNotIn("Safe 權限模式限制", msg)
+
+    def test_full_mode_is_not_reported_as_safe(self) -> None:
+        stderr = (
+            'a tool required the "command" permission that headless mode cannot prompt for, '
+            "so it was auto-denied"
+        )
+        result = ProcessResult(returncode=0, stdout="", stderr=stderr)
+        msg = format_result_message(result, "full")
+        self.assertNotIn("Safe 權限模式限制", msg)
+        self.assertIn(stderr, msg)
 
 
 class ProcessTests(unittest.TestCase):

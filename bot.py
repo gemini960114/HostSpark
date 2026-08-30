@@ -77,7 +77,7 @@ async def run_agy(user_text: str, *, continue_conversation: bool) -> ProcessResu
 
 
 def result_message(result: ProcessResult) -> str:
-    return format_result_message(result)
+    return format_result_message(result, get_config().permission_mode)
 
 
 async def send_formatted_response(message, text: str) -> None:
