@@ -1,43 +1,43 @@
-# 給 AI Agent (如 agy) 的一鍵全自動安裝指示手冊
+# 給 AI Agent 的 Ubuntu VM 安裝指示
 
-> **當使用者把這個 repo 給你，並請你安裝時，請按照以下標準 SOP 執行：**
+本專案只以一般 Ubuntu 使用者搭配 systemd 為正式支援目標。不要直接以 root 執行 Bot，也不要替使用者新增 `NOPASSWD:ALL`。
 
-## 1. 環境檢查與依賴安裝
-1. 檢查主機是否具備 Python 環境：
-   - 若主機有 `uv`（執行 `which uv`），優先使用 `uv` 建立虛擬環境：
-     ```bash
-     uv venv venv
-     ./venv/bin/pip install -r requirements.txt
-     ```
-   - 若無 `uv`，檢查 `python3-venv`，若未安裝則執行 `sudo apt update && sudo apt install -y python3-pip python3-venv`，並執行：
-     ```bash
-     python3 -m venv venv
-     ./venv/bin/pip install -r requirements.txt
-     ```
+## 安裝 SOP
 
-## 2. 設定檔配置
-1. 檢查當前目錄是否有 `.env`，若無則自 `.env.example` 複製。
-2. 將使用者提供的 `TELEGRAM_BOT_TOKEN` 與 `ALLOWED_USER_ID`（若有）寫入 `.env`。
-3. 執行 `chmod 600 .env` 保護機密權限。
+1. 確認目前是預計執行服務的一般使用者，且下列命令成功：
 
-## 3. 註冊並啟動 systemd 服務
-1. 建立 `/etc/systemd/system/agy-telegram.service`：
-   ```ini
-   [Unit]
-   Description=Antigravity CLI (agy) Telegram Bot Bridge Service
-   After=network.target docker.service
-
-   [Service]
-   Type=simple
-   User=ubuntu
-   WorkingDirectory=/home/ubuntu
-   Environment="PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-   ExecStart=/home/ubuntu/telegram_agy_bot/venv/bin/python3 /home/ubuntu/telegram_agy_bot/bot.py
-   Restart=always
-   RestartSec=5
-
-   [Install]
-   WantedBy=multi-user.target
+   ```bash
+   agy --version
+   agy -p "reply ok"
    ```
-2. 執行 `sudo systemctl daemon-reload && sudo systemctl enable --now agy-telegram.service`。
-3. 執行 `sudo systemctl status agy-telegram.service` 驗證狀態為 active (running) 並回報使用者！
+
+2. 在 repo 根目錄建立設定：
+
+   ```bash
+   cp -n .env.example .env
+   chmod 600 .env
+   ```
+
+3. 將使用者提供的值寫入 `.env`：
+   - `TELEGRAM_BOT_TOKEN`
+   - `ALLOWED_USER_ID`
+   - `AGY_PERMISSION_MODE=safe` 或 `full`
+   - 需要時才設定 `AGY_BIN`、`AGY_WORKDIR`、`AGY_RULE_PROMPT`
+
+4. 向使用者說明：`full` 會讓 AGY 自動核准所有工具操作；rule prompt 不能取代真正的權限隔離。必須由使用者明確選擇，不可自行推定為 `full`。
+
+5. 執行安裝腳本；它會使用 uv（若已安裝）或 Python venv、同步依賴、驗證設定、依目前使用者與 repo 實際路徑產生 systemd service：
+
+   ```bash
+   chmod +x install.sh
+   ./install.sh
+   ```
+
+6. 驗證服務與最近日誌：
+
+   ```bash
+   sudo systemctl status agy-telegram.service --no-pager
+   sudo journalctl -u agy-telegram.service -n 50 --no-pager
+   ```
+
+7. 不要把 `.env`、Token、AGY 登入憑證或日誌中的秘密提交到 Git。

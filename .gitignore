@@ -20,6 +20,8 @@ __pycache__/
 
 # Logs
 *.log
+.coverage
+.pytest_cache/
 
 # OS / Editor metadata
 .DS_Store
