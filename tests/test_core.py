@@ -41,8 +41,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.timeout_seconds, 30)
         self.assertEqual(config.max_output_bytes, 4096)
         self.assertEqual(config.agy_bin, Path(sys.executable).resolve())
-        self.assertEqual(config.bot_name, "國網AI助理")
-        self.assertEqual(config.waiting_message, "⏳ 國網AI助理 正在思考與執行中，請稍候...")
+        self.assertEqual(config.bot_name, "HostSpark")
+        self.assertEqual(config.waiting_message, "⏳ HostSpark 正在思考與執行中，請稍候...")
 
     def test_custom_bot_name_and_waiting_message(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

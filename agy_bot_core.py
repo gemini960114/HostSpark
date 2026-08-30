@@ -17,7 +17,7 @@ SECRET_VALUE_RE = re.compile(
 )
 BOT_TOKEN_RE = re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b")
 BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
-DEFAULT_BOT_NAME = "國網AI助理"
+DEFAULT_BOT_NAME = "HostSpark"
 DEFAULT_WAITING_MESSAGE = f"⏳ {DEFAULT_BOT_NAME} 正在思考與執行中，請稍候..."
 
 

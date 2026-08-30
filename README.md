@@ -1,9 +1,9 @@
-# Antigravity CLI Telegram Ubuntu VM Bridge
+# HostSpark (Antigravity CLI Telegram Linux VM Agent)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-一個專為私人 Ubuntu VM 設計的輕量 **Telegram → Antigravity CLI (`agy`) 橋接器**。正式支援目標是國網、晶創雲等採用一般 Ubuntu 使用者與 systemd 的 VM。
+**HostSpark** 是一個專為 Linux / Ubuntu 主機設計的 24/7 自主 AI 代理系統，透過 Telegram 與 Antigravity CLI (`agy`) 將主機轉化為隨身可控的專屬工程師與維運助手。正式支援目標是國網、晶創雲、各大雲端 VPS 與採用一般 Ubuntu 使用者與 systemd 的伺服器。
 
 本專案不是另一套 AI Agent 框架，也不自行實作模型、推理引擎或電腦控制工具。Telegram 負責提供手機通訊介面，本 Bot 只負責單一管理員驗證、請求轉送、定時觸發、timeout、錯誤處理及訊息格式；真正的 AI 推理、工具調用、檔案操作與系統控制能力均由 AGY 提供。
 
@@ -83,10 +83,10 @@ AGY_BIN=
 AGY_WORKDIR=
 
 AGY_RULE_PROMPT="只操作指定的專案目錄；修改前先說明；使用繁體中文回覆。"
-# 留空時預設為 "國網AI助理"
-AGY_BOT_NAME="國網AI助理"
-# 留空時預設為 "⏳ 國網AI助理 正在思考與執行中，請稍候..."
-AGY_WAITING_MESSAGE="⏳ 國網AI助理 正在思考與執行中，請稍候..."
+# 留空時預設為 "HostSpark"
+AGY_BOT_NAME="HostSpark"
+# 留空時預設為 "⏳ HostSpark 正在思考與執行中，請稍候..."
+AGY_WAITING_MESSAGE="⏳ HostSpark 正在思考與執行中，請稍候..."
 AGY_TIMEOUT_SECONDS=600
 AGY_MAX_OUTPUT_BYTES=1000000
 
