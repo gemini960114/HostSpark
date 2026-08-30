@@ -234,70 +234,107 @@ Bot Token 等同 Bot 的控制憑證。任何取得 Token 的人都可能控制 
 
 6. 檢查 repo 與 Git 歷史是否曾提交 Token。如果曾經提交，單純刪除目前檔案不夠；先輪替 Token，再清理 Git 歷史與遠端副本。
 
-## 使用
+## 指令手冊與使用說明
 
-- `/start` 或 `/help`：顯示目前執行模式與指令。
-- `/status`：顯示 VM 健康狀態；Docker 為選用項目。
-- `/clear`：建立新的 AGY 工作階段。
-- `/schedule_help`：顯示 cron 格式、範例與可用變數。
-- `/schedule_add`：讓 AGY 整理任務 prompt，預覽確認後建立排程。
-- `/schedule_list`：列出所有排程與下次執行時間。
-- `/schedule_show ID`：查看原始要求、完整 prompt 與執行狀態。
-- `/schedule_pause ID`、`/schedule_resume ID`、`/schedule_delete ID`：管理排程。
-- 一般文字：交給 AGY 執行。
+### 完整指令清單
+
+| 指令 | 說明 | 範例 |
+|---|---|---|
+| `/start` 或 `/help` | 顯示歡迎訊息、目前權限模式（Safe / Full）及指令快速導覽 | `/help` |
+| `/status` | 檢查 VM 即時健康狀態（負載、磁碟容量、記憶體與 Docker） | `/status` |
+| `/clear` | 重置對話上下文，開啟全新的 AGY 工作階段 | `/clear` |
+| `/schedule_help` | 查看定時排程的 cron 語法、可用變數與設定限制 | `/schedule_help` |
+| `/schedule_add` | 建立定時任務（先經 AGY 整理提示詞並在 Telegram 預覽確認） | `/schedule_add 0 * * * * 查詢台北天氣並簡報` |
+| `/schedule_list` | 列出目前所有已建立、已啟用或已暫停的定時任務 | `/schedule_list` |
+| `/schedule_show ID` | 查看特定排程的完整細節、執行統計與 AGY Prompt 模板 | `/schedule_show 1` |
+| `/schedule_pause ID` | 暫停指定的定時任務（暫停期間不觸發） | `/schedule_pause 1` |
+| `/schedule_resume ID` | 恢復暫停的定時任務，並自動重新計算下一次執行時間 | `/schedule_resume 1` |
+| `/schedule_delete ID` | 永久刪除指定的定時任務 | `/schedule_delete 1` |
+| 一般文字 | 交給 AGY 進行一般對話問答與單次任務執行 | `請幫我檢查伺服器連線狀態` |
+
+### 服務管理命令（Linux 終端機）
 
 ```bash
+# 查看服務狀態
 sudo systemctl status agy-telegram.service
+
+# 查看即時日誌
 sudo journalctl -u agy-telegram.service -f
+
+# 重新啟動服務
 sudo systemctl restart agy-telegram.service
+
+# 停止服務
 sudo systemctl stop agy-telegram.service
 ```
 
-## AGY 定時任務
+## AGY 定時任務（v0.2 新增）
 
-定時任務使用標準五欄 cron 表達式，時間依 `AGY_SCHEDULE_TIMEZONE` 解讀。新增時，Bot 會先要求 AGY 將原始需求整理成每次皆可獨立執行的完整 prompt；只有管理員在 Telegram 預覽並按下「確認建立」後才會啟用。
+### 為什麼採用專屬固定指令（`/schedule_add`）？
+
+在 Telegram 中，一般純文字對話屬於「即時單次對話」（使用 `--continue` 延續上下文）。若直接在純文字輸入「幫我每 3 分鐘排程...」，會讓 AGY CLI 誤在背景開啟遞迴輪詢，造成單次對話進程卡住不退出。
+
+因此 v0.2 將排程功能提升為**主機系統層級（Host-level Scheduler）**：
+1. **穩定與可控**：由系統 SQLite 與主機定時器管理觸發時機，時間到達時才喚醒獨立的 AGY CLI 進程，執行完畢即釋放資源。
+2. **兩階段確認機制**：輸入 `/schedule_add` 後，AGY 會先將需求整理成獨立、可重複執行的完整 Prompt，並在 Telegram 彈出 **「✅ 確認建立 / ❌ 取消」** 按鈕，由管理員人工審核後才正式啟用。
+3. **工作階段隔離（Workspace Isolation）**：每個排程使用專屬獨立工作目錄，搭配 `--add-dir` 開放專案目錄，**絕不污染**一般日常對話的 `--continue` 歷史記錄。
+4. **全域並行鎖（Concurrency Lock）**：排程與人工問答共用 AGY 執行鎖，同一時間只執行一項 AGY 任務，避免資源衝突與競爭。
+5. **熔斷保護（Circuit Breaker）**：連續失敗 3 次的排程會自動暫停，並即時推播告警訊息至 Telegram，防止錯誤排程無限空轉消耗 API 額度。
+6. **重啟持久化**：重啟 Bot 或 VM 後排程自動保留；停機期間錯過的多次執行在恢復後最多只補跑一次，避免大量集中發送。
+
+### 排程語法與範例
+
+定時任務使用標準五欄 cron 表達式，時間依 `AGY_SCHEDULE_TIMEZONE`（預設 `Asia/Taipei`）解讀：
 
 ```text
 /schedule_add 分 時 日 月 週 任務內容
 ```
 
-例如每小時整點查詢一次天氣：
+#### 常用排程範例：
 
 ```text
-/schedule_add 0 * * * * 查詢台北目前天氣與未來三小時降雨機率，簡短回報
-```
+# 每 3 分鐘輪播一次台灣縣市天氣（間隔下限可於 .env 設定）
+/schedule_add */3 * * * * 查詢台灣各縣市天氣狀況，由北至南輪流播報一個縣市，簡短回報
 
-例如每天 09:00 檢查 VM：
+# 每 15 分鐘執行一次伺服器資源巡檢
+/schedule_add */15 * * * * 檢查系統負載與記憶體，若有異常則簡要回報
 
-```text
+# 每天早上 09:00 產出維運摘要
 /schedule_add 0 9 * * * 檢查 VM、服務與 Docker 狀態，摘要需要注意的異常
+
+# 週一至週五 18:00 執行下班備份確認
+/schedule_add 0 18 * * 1-5 檢查今日備份檔是否正常產生並回報大小
 ```
 
-常用 cron：
+#### 常用 cron 參考：
 
-| cron | 執行時間 |
+| cron | 執行頻率 |
 |---|---|
+| `*/3 * * * *` | 每 3 分鐘 |
+| `*/15 * * * *` | 每 15 分鐘 |
 | `0 * * * *` | 每小時整點 |
-| `*/30 * * * *` | 每 30 分鐘 |
 | `0 9 * * *` | 每天 09:00 |
 | `0 9 * * 1-5` | 週一至週五 09:00 |
 
-可在 prompt 使用以下執行時變數：
+### 執行時變數（Runtime Variables）
 
-- `{{now}}`：實際執行時間。
-- `{{date}}`、`{{time}}`：執行日期與時間。
-- `{{timezone}}`：排程時區。
-- `{{scheduled_at}}`：原訂執行時間。
-- `{{run_number}}`：包含本次的執行序號。
+可在 Prompt 模板中使用以下變數，排程執行時會自動代入實際數值：
 
-其他未知的 `{{變數}}` 會原樣保留，交由 AGY 或使用者的工具處理。若任務要求「沒有異常就不要通知」，AGY 整理後的 prompt 會要求無須通知時只輸出 `[NO_REPORT]`，Bot 收到該精確值便不傳送訊息。
+- `{{now}}`：實際執行時間（ISO 格式）。
+- `{{date}}`：實際執行日期（YYYY-MM-DD）。
+- `{{time}}`：實際執行時間（HH:MM:SS）。
+- `{{timezone}}`：排程設定時區（例如 `Asia/Taipei`）。
+- `{{scheduled_at}}`：原訂排程觸發時間。
+- `{{run_number}}`：包含本次在內的累計執行序號。
 
-排程資料預設保存在 `~/.local/state/agy-telegram-bot/schedules.db`。Bot 重啟後仍會保留，但停機期間錯過的多次執行只會在恢復後執行一次，避免集中補跑。每個排程使用獨立 AGY workspace，並透過 `--add-dir` 存取主要 `AGY_WORKDIR`，不會改變一般問答使用 `--continue` 的最近對話。
+未知的 `{{自訂變數}}` 會原樣保留，交由 AGY 或外部工具自行處理。
 
-所有排程與人工問答共用單一 AGY 執行鎖；同一時間只執行一項任務。連續失敗三次的排程會自動暫停並通知管理員。最短間隔與數量上限可由 `.env` 設定。
+### 靜默回報機制（`[NO_REPORT]`）
+
+若任務屬於「沒有異常就不要通知」（例如例行檢查），AGY 整理後的 Prompt 會要求在無須通知時只輸出精確值 `[NO_REPORT]`。Bot 收到該值後會判定執行成功但**不發送 Telegram 訊息**，避免訊息洗版。
 
 > [!WARNING]
-> 定時任務會在無人監看時執行。實際執行沿用 `AGY_PERMISSION_MODE`；Full 模式也會自動核准排程發起的工具操作。不要把 Token、密碼、私鑰或其他憑證寫入排程，因為原始要求與完整 prompt 會保存在 SQLite。
+> 定時任務會在無人值守時自動執行。實際執行會沿用 `AGY_PERMISSION_MODE`（Full 模式會自動核准工具操作）。**請勿將 Token、密碼、私鑰等敏感憑證寫入排程內容**，因為原始要求與 Prompt 模板會保存在 SQLite 資料庫中。
 
 ## 設定驗證與測試
 
