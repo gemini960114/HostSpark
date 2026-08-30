@@ -1,113 +1,127 @@
-# Antigravity CLI (agy) Telegram Bot 遠端遙控系統
+# 🚀 Antigravity CLI (agy) Telegram VM Remote Control Agent
+### 透過手機 Telegram，24/7 隨時隨地用語音與自然語言掌控整台 Linux 雲端虛擬機 (Cloud VM / VPS)
 
-本專案是一個輕量級橋接系統，將 Telegram Bot 與伺服器本機的 **Google Antigravity CLI (`agy`)** 深度整合。讓管理員可以隨時透過手機 Telegram，24/7 進行自然語言主機維運、程式碼撰寫、Docker 容器監控與自動化故障排查。
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
+[![Powered by: Google Antigravity](https://img.shields.io/badge/Powered%20by-Google%20Antigravity%20(agy)-orange.svg)](https://antigravity.google)
 
 ---
 
-## 1. 事前準備條件 (Prerequisites)
+## 📖 專案簡介 (Overview)
 
-在全新 Linux 伺服器上部署本系統前，只需確認以下 3 樣基礎工具：
+**`agy-telegram-bot`** 是一個專為 **雲端虛擬機（Linux VM / VPS / 實體伺服器）** 量身打造的 AI 遙控運維橋接系統。
 
-1. **安裝並登入 `agy` (Antigravity CLI)**：
-   - 確保終端機可執行 `agy --version`。
-2. **安裝 `uv`（推薦極速 Python 套件管理工具）或 `python3`**：
+傳統上，維護雲端 VM 必須打開筆記型電腦、連線 VPN、啟動 SSH 終端機並手動敲打複雜的 Linux 指令。  
+透過本專案，您可以**直接在手機 Telegram 聊天室中，使用文字或語音向主機發布任務**。伺服器本機的 **Google Antigravity AI Agent (`agy`)** 會直接在 VM 內部執行多步驟自主推理、調用系統工具、讀寫檔案、管理 Docker 並即時回傳結構化報表！
+
+---
+
+## 🎯 核心 VM 掌控場景 (VM Control Scenarios)
+
+您可以在手機 Telegram 上直接對 VM 下達以下自然語言任務：
+
+### 1. 🖥️ 虛擬機系統健康與資源監控
+- 「*幫我查看這台 VM 的 CPU、記憶體使用量與硬碟剩餘空間*」
+- 「*目前 VM 的系統負載（Load Average）與開機時間是多少？*」
+- 「*檢查伺服器近期是否有 OOM (Out of Memory) 或異常重啟紀錄？*」
+
+### 2. 🐳 Docker 容器與網站服務維運
+- 「*檢查目前 VM 上所有 Docker 容器的運作與健康狀態*」
+- 「*網站出現 500 錯誤，幫我查看 Apache 和 MySQL 容器的最新錯誤日誌並修復*」
+- 「*幫我重啟 Web 容器並驗證首頁 HTTP 回應碼*」
+
+### 3. 🔒 網路、SSL 憑證與資安檢查
+- 「*檢查目前 VM 上的 Let's Encrypt SSL 憑證到期日*」
+- 「*這台 VM 目前開放並監聽了哪些網路 Port（netstat/ss）？*」
+- 「*幫我執行 Certbot 續期並熱重載 Web 伺服器*」
+
+### 4. 🛠️ 程式碼檢視、設定檔修改與排程維護
+- 「*幫我把 `statistics.php` 裡面的資料庫連線主機改為 `db`*」
+- 「*查看 root 的 crontab 排程任務清單*」
+- 「*備份資料庫並壓縮存放到指定目錄*」
+
+---
+
+## 🛡️ 針對 VM 控制的極致安全防護 (Security)
+
+由於本系統具備控制整台 VM 的強大能力，安全性設計為最高優先級：
+
+1. **🚫 零外部監聽埠 (Zero Inbound Ports)**：
+   - 採用 Telegram 長輪詢（Long Polling 出站加密連線），**VM 不需要對外開放任何額外 Port 或 Webhook**，駭客無法透過網路掃描攻擊機器人。
+2. **🔐 專屬 User ID 白名單鎖定 (Strict Whitelist)**：
+   - 每一則傳入訊息皆嚴格比對使用者的 Telegram 數字 ID。**非白名單內的陌生人一律直接拒絕且不觸發任何指令**。
+3. **👤 系統權限隔離 (User Permission Isolation)**：
+   - 機器人預設以一般使用者身分（非 root）運行，配合 Linux 原生權限架構，保障 VM 核心系統安全。
+
+---
+
+## 📋 事前準備 (Prerequisites)
+
+在一台全新的 Linux VM 上，只需準備好以下 3 樣基礎工具：
+
+1. **`agy` (Antigravity CLI)**：安裝於 VM 並完成登入（可在終端機執行 `agy --version`）。
+2. **`uv`（極速 Python 套件管理器，推薦）或 `python3`**：
    - 一秒安裝 `uv`：`curl -LsSf https://astral.sh/uv/install.sh | sh`
-   - （或使用 Ubuntu 內建：`sudo apt update && sudo apt install -y python3-pip python3-venv`）
-3. **準備 Telegram 機器人 Token**：
-   - 在 Telegram 搜尋 `@BotFather`，發送 `/newbot` 取得 `Bot Token`。
+   - （或 Ubuntu 內建：`sudo apt update && sudo apt install -y python3-pip python3-venv`）
+3. **Telegram Bot Token**：
+   - 在 Telegram 搜尋官方機器人 `@BotFather`，發送 `/newbot` 取得 `Bot Token`。
 
 ---
 
-## 2. 專案目錄結構
+## 🚀 部署安裝方式 (Installation)
 
-```text
-/home/ubuntu/telegram_agy_bot/
-├── bot.py                  # Telegram Bot 核心橋接程式 (處理訊息、非同步排程鎖、調用 agy)
-├── .env                    # 機密設定檔 (Bot Token 與 白名單 User ID，權限 600)
-├── .env.example            # 設定檔範本
-├── requirements.txt        # Python 依賴清單 (python-telegram-bot, python-dotenv)
-├── install.sh              # 一鍵自動化安裝腳本
-├── INSTALL_BY_AI.md        # 給 AI Agent (如 agy) 的一鍵全自動安裝指示手冊
-├── README.md               # 本說明文件
-└── venv/                   # Python 3 獨立虛擬環境
-```
+### 方式 A：交給 VM 上的 AI 全自動安裝（最推薦 ⭐⭐⭐⭐⭐）
+將本專案複製至您的 VM 後，啟動 `agy` 直接對 AI 說：
+> **「請閱讀當前目錄下的 `INSTALL_BY_AI.md`，使用 `uv` 幫我安裝並啟動 Telegram VM 遙控服務，我的 Token 是 `xxxx`」**
 
-- **Linux 系統常駐服務檔**：`/etc/systemd/system/agy-telegram.service`
-
----
-
-## 3. 兩種極速安裝部署方式
-
-### 方式 A：交給 AI 自動全自動安裝（最推薦 ⭐⭐⭐⭐⭐）
-將整包 `telegram_agy_bot` 目錄放到新主機後，啟動 `agy` 直接吩咐 AI：
-> **「請閱讀當前目錄下的 `INSTALL_BY_AI.md`，使用 `uv` 幫我安裝並啟動 Telegram Bot 服務，我的 Bot Token 是 `xxxx`」**
-
-AI 就會自動在背後建立虛擬環境、安裝依賴、配置 `.env` 安全權限並註冊開機自啟服務！
+AI 就會自動在 VM 上建立虛擬環境、安裝依賴、配置權限並註冊開機自啟服務！
 
 ---
 
 ### 方式 B：手動一鍵腳本安裝
 ```bash
-# 1. 進入目錄並執行安裝腳本
-cd /home/ubuntu/telegram_agy_bot
+# 1. 進入專案目錄並執行安裝腳本
+cd telegram_agy_bot
 chmod +x install.sh
 ./install.sh
 
 # 2. 填入您的 Telegram Bot Token
 nano .env
 
-# 3. 啟動/重啟服務
+# 3. 啟動/重啟 systemd 服務
 sudo systemctl restart agy-telegram.service
 ```
 
 ---
 
-## 4. 安全防護機制（白名單鎖定）
+## ⚙️ VM 系統服務管理指令
 
-- **預設狀態：只有管理員本人可使用（100% 專屬鎖定）**。
-- 首次啟動時，**第一個在 Telegram 傳送 `/start` 給機器的帳號會自動綁定為唯一管理員**，並記錄在 `.env` 中。
-- 若非白名單內的陌生人發送訊息，系統會直接拒絕（`⛔ 您沒有權限使用此機器人`），完全不會觸發任何伺服器指令。
-
-### 如何新增其他授權使用者？
-若日後想授權同事或第二個帳號一起使用：
-1. 讓對方在 Telegram 搜尋 `@userinfobot` 取得其專屬 `User ID`（純數字）。
-2. 編輯 `.env`：
-   ```bash
-   nano /home/ubuntu/telegram_agy_bot/.env
-   ```
-3. 在 `ALLOWED_USER_ID` 加入對方的 ID（以逗號分隔，例如：`ALLOWED_USER_ID='8557428151,123456789'`）。
-4. 重啟服務即可生效：
-   ```bash
-   sudo systemctl restart agy-telegram.service
-   ```
-
----
-
-## 5. 系統服務管理指令
-
-本專案已註冊為 Linux `systemd` 系統服務，開機自動啟動，若異常會自動重啟：
+本專案已註冊為 Linux `systemd` 守護服務（開機自啟、崩潰自動重連）：
 
 ```bash
-# 查看機器人即時運行狀態
+# 查看機器人運行狀態
 sudo systemctl status agy-telegram.service
 
-# 查看即時對話日誌 (可看到每次執行的指令與輸出)
+# 查看即時對話與 VM 執行日誌
 sudo journalctl -u agy-telegram.service -f
 
-# 重啟機器人服務
+# 重啟服務
 sudo systemctl restart agy-telegram.service
 
-# 停止機器人服務
+# 停止服務
 sudo systemctl stop agy-telegram.service
 ```
 
 ---
 
-## 6. 手機 Telegram 常用操作與指令
+## 📱 手機常用快捷指令
 
-- **`/status`**：即時查看主機 Docker 容器狀態、硬碟剩餘空間與記憶體用量。
-- **`/clear`**：重置對話上下文，開啟全新的工作階段。
-- **自然語言對話 / 手機語音輸入**：
-  - `請檢查 HMP 網站目前狀態與資料庫連線`
-  - `查看目前 /var/log/hmp-monitor.log 的最新 10 行紀錄`
-  - `伺服器有哪些 Docker 容器在跑？`
+- **`/status`**：一鍵產生 VM 即時健康報表（Docker 狀態、磁碟容量、記憶體使用）。
+- **`/clear`**：重置對話工作階段，開啟全新維運任務。
+- **直接輸入自然語言 / 語音**：直接指派任何 VM 維運或程式任務。
+
+---
+
+## 📄 開源授權 (License)
+
+本專案採用 [MIT License](LICENSE) 開源授權，歡迎自由修改與推廣使用。
