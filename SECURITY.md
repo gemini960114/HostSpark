@@ -19,7 +19,8 @@ The following are outside the project's security guarantees:
 ## Deployment requirements
 
 - Set `ALLOWED_USER_IDS` (or `ALLOWED_USER_ID`) before startup; there is no first-user auto-binding.
-- Keep `.env` at mode `600` and never commit it.
+- Keep `.env` at mode `600` and never commit it. `chat_state.db`, `schedules.db`, and the instance-lock `bot.pid` file are all created at mode `600` automatically; do not loosen them.
+- Uploaded attachments and per-chat/schedule working directories are automatically purged once a day when older than 30 days (`cleanup_expired_workspaces_and_uploads`, run from the schedule loop). This is a disk-hygiene measure, not a data-retention guarantee — do not rely on it for compliance purposes, and do not assume sensitive content is gone before 30 days have passed.
 - Prefer Safe mode. Use Full only on a dedicated, recoverable VM.
 - Remember that scheduled tasks run unattended. In Full mode they inherit automatic tool approval, so review the generated prompt before confirming a schedule.
 - Never place tokens, passwords, private keys or other credentials in a scheduled-task prompt; prompts are persisted in SQLite.

@@ -46,8 +46,11 @@ class InstanceLock:
             else:
                 self.lock_path.unlink(missing_ok=True)
 
+        from contextlib import suppress
         my_pid = os.getpid()
         self.lock_path.write_text(str(my_pid))
+        with suppress(Exception):
+            self.lock_path.chmod(0o600)
         self._acquired = True
         atexit.register(self.release)
 

@@ -1098,7 +1098,8 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
 
     async def keep_typing() -> None:
         while True:
-            await application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            with suppress(Exception):
+                await application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             await asyncio.sleep(4)
 
     typing_task = asyncio.create_task(keep_typing())
@@ -1618,14 +1619,17 @@ async def _execute_due_schedule(application, due: DueSchedule) -> None:
             and is_headless_permission_denied(result.stderr)
         )
         success = result.returncode == 0 and not result.timed_out and not permission_denied
+        admin_ids = config.allowed_user_ids or {config.allowed_user_id}
         if success and result.stdout.strip() == NO_REPORT_SENTINEL:
             logger.info("排程 #%s 本次不需通知", schedule.id)
         else:
-            await send_formatted_to_chat(
-                application.bot,
-                config.allowed_user_id,
-                f"⏰ **排程 #{schedule.id} 執行結果**\n\n{result_message(result)}",
-            )
+            for admin_id in sorted(admin_ids):
+                with suppress(Exception):
+                    await send_formatted_to_chat(
+                        application.bot,
+                        admin_id,
+                        f"⏰ **排程 #{schedule.id} 執行結果**\n\n{result_message(result)}",
+                    )
         if not success:
             error = result.stderr or result.stdout or "AGY 執行失敗"
     except Exception as exc:
@@ -1639,21 +1643,39 @@ async def _execute_due_schedule(application, due: DueSchedule) -> None:
             error=error,
         )
     if auto_paused:
-        with suppress(Exception):
-            await send_formatted_to_chat(
-                application.bot,
-                config.allowed_user_id,
-                f"⚠️ **排程 #{schedule.id} 已自動暫停**\n\n連續失敗 3 次，請使用 "
-                f"`/schedule_show {schedule.id}` 查看，再以 `/schedule_resume {schedule.id}` 恢復。",
-            )
+        admin_ids = config.allowed_user_ids or {config.allowed_user_id}
+        for admin_id in sorted(admin_ids):
+            with suppress(Exception):
+                await send_formatted_to_chat(
+                    application.bot,
+                    admin_id,
+                    f"⚠️ **排程 #{schedule.id} 已自動暫停**\n\n連續失敗 3 次，請使用 "
+                    f"`/schedule_show {schedule.id}` 查看，再以 `/schedule_resume {schedule.id}` 恢復。",
+                )
 
 
 async def schedule_loop(application) -> None:
     logger.info("AGY 排程器已啟動")
+    last_cleanup_date = None
     while True:
         try:
+            # 1. Execute due schedules
             for due in get_schedule_store().claim_due():
                 await _execute_due_schedule(application, due)
+
+            # 2. Daily routine cleanup for expired files (> 30 days)
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if today_str != last_cleanup_date:
+                config = get_config()
+                count = cleanup_expired_workspaces_and_uploads(
+                    config.workspace_root,
+                    config.state_db_path,
+                    schedule_db_path=config.schedule_db_path,
+                    max_age_days=30,
+                )
+                last_cleanup_date = today_str
+                if count > 0:
+                    logger.info("每日例行清理完成：共刪除 %s 個過期暫存檔案", count)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1664,6 +1686,44 @@ async def schedule_loop(application) -> None:
 # -----------------------------------------------------------------------------
 # Bot Lifecycle: Post Init / Shutdown & In-flight Recovery
 # -----------------------------------------------------------------------------
+
+def cleanup_expired_workspaces_and_uploads(
+    workspace_root: Path,
+    state_dir: Path,
+    schedule_db_path: Path | None = None,
+    max_age_days: int = 30,
+) -> int:
+    now_ts = datetime.now(timezone.utc).timestamp()
+    max_age_seconds = max_age_days * 86400
+
+    target_dirs = [
+        workspace_root / "uploads",
+        workspace_root / "workspaces",
+        state_dir.parent / "workspaces",
+    ]
+    if schedule_db_path is not None:
+        target_dirs.append(schedule_db_path.parent / "workspaces")
+
+    deleted_count = 0
+    seen_dirs = set()
+    for root_dir in target_dirs:
+        try:
+            resolved = root_dir.expanduser().resolve()
+            if resolved in seen_dirs or not resolved.is_dir():
+                continue
+            seen_dirs.add(resolved)
+            for item in resolved.rglob("*"):
+                if item.is_file():
+                    try:
+                        if now_ts - item.stat().st_mtime > max_age_seconds:
+                            item.unlink(missing_ok=True)
+                            deleted_count += 1
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.debug("清理過期檔案時略過：%s (%s)", root_dir, exc)
+    return deleted_count
+
 
 async def post_init(application) -> None:
     # 1. Start schedule task
@@ -1691,6 +1751,10 @@ async def post_init(application) -> None:
                 )
             JOB_QUEUE.enqueue(chat_id=chat_id, user_id=0, prompt=prompt, auto_interrupt=False)
         store.clear_all_in_flight()
+
+    # 4. Clean up expired files (> 30 days) across uploads and workspaces
+    config = get_config()
+    cleanup_expired_workspaces_and_uploads(config.workspace_root, config.state_db_path, schedule_db_path=config.schedule_db_path, max_age_days=30)
 
 
 async def post_shutdown(application) -> None:

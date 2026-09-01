@@ -17,6 +17,15 @@ class InstanceLockTests(unittest.TestCase):
             lock.release()
             self.assertFalse(lock_path.exists())
 
+    def test_lock_file_permissions_are_0600(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            lock_path = Path(d) / "bot.pid"
+            lock = InstanceLock(lock_path)
+            lock.acquire()
+            mode = lock_path.stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
+            lock.release()
+
     def test_stale_lock_takeover(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             lock_path = Path(d) / "bot.pid"

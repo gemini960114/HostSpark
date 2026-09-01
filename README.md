@@ -29,9 +29,10 @@ Ubuntu VM（檔案系統／Docker 容器／系統服務／硬體資源）
 - **多模態附件與檔案互動**：支援上傳圖片、文件（`.py`, `.log`, `.pdf`, `.json` 等）直接交由 AGY 分析；AGY 產生的圖片與報表自動透過 Telegram 傳回。
 - **配額與使用量即時查詢**：`/usage` / `/quota` / `/credits` 提供結構化進度指標（🟢/🟡/🔴/⭐/⚪ 視覺化標籤與進度落差分析）；`/context` 檢視上下文明細。
 - **安全 CLI Passthrough 與兩階段確認**：`/agy [ARGS]` 支援原生 CLI 旗標（強制阻擋 `-i` 互動死鎖，危險指令自動觸發確認）。
-- **主機層級定時任務（Scheduler）**：SQLite 持久化、五欄 cron、執行時變數模板、3次失敗自動熔斷保護。
+- **主機層級定時任務（Scheduler）**：SQLite 持久化、五欄 cron、執行時變數模板、3次失敗自動熔斷保護；執行結果與熔斷警告會廣播給**全部**已授權管理員（多組 `ALLOWED_USER_IDS` 時每位都會收到）。
 - **任務佇列與 Auto-Interrupt 合併**：全域單一序列化佇列，連續傳送訊息時自動以 `[Update / Follow-up]` 智慧合併前次指示。
 - **進程鎖與崩潰自動恢復**：單一實例鎖（PID 檢查與殘留鎖自動接管）；Bot 重啟時自動恢復未完成任務。
+- **每日自動清理**：排程迴圈每天例行清除 `uploads/`、per-chat 與排程專屬工作目錄裡超過 30 天的暫存檔案，避免長期 24/7 運行塞爆磁碟。
 - **機密遮罩與安全隔離**：子程序自動過濾 Telegram Token、User ID 白名單、AWS Key、SSH 私鑰與 JWT。
 
 ---
@@ -177,6 +178,32 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
 > [!NOTE]
 > `install.sh` 把服務裝成一般使用者身分執行的系統層級 systemd unit，該使用者通常**沒有權限**直接呼叫 `systemctl restart` 觸發自己的服務（會被 polkit 擋下並回報 `Interactive authentication required`）。因此 `/restart`／`/update` 內部會先嘗試 `systemctl restart`，若失敗則改用**非零結束碼**讓程序結束——systemd unit 設有 `Restart=on-failure`，會在數秒內自動重新拉起服務。這代表你不需要額外授予 sudo 或設定 polkit 規則，`/restart`／`/update` 就能正常運作；重啟期間服務會短暫離線約 5 秒。
+
+### 手機端指令自動補齊（選用）
+
+向 `@BotFather` 傳送 `/setcommands`，選擇你的 Bot，貼上以下清單，之後在 Telegram 輸入 `/` 就會跳出中文說明的自動補齊選單（這是精選常用子集，不含全部指令）：
+
+```text
+menu - 開啟快捷功能操作鍵盤
+status - 檢視主機資源狀態與任務佇列
+new - 開啟全新對話 Session
+session - 檢視目前對話各項設定明細
+model - 查看或切換當前 AI 模型
+effort - 設定推理深度 (low/medium/high)
+mode - 設定執行模式 (plan/accept-edits)
+sandbox - 開啟或關閉沙箱隔離 (on/off)
+verbose - 設定串流進度詳細度 (detailed/compact/silent)
+setdefault - 將目前設定寫回全域預設值
+usage - 查詢 AGY 額度與配額指標
+quota - 查詢剩餘配額與重置時間
+context - 檢視上下文與 Token 用量明細
+cancel - 取消當前執行或佇列中的任務
+agy - 執行原生 AGY CLI 參數
+schedule_list - 列出所有定時排程任務
+schedule_add - 新增定時排程任務
+schedule_help - 查看定時排程 cron 語法與說明
+help - 顯示完整功能操作說明
+```
 
 ---
 

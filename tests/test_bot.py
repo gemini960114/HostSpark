@@ -1,3 +1,5 @@
+import os
+import time
 import asyncio
 import sys
 import tempfile
@@ -163,6 +165,60 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
             await bot.run_agy("hi", chat_id=chat_id, continue_conversation=True)
         prompt = mocked.await_args.args[0][2]
         self.assertNotIn("過期的報告內容", prompt)
+
+    async def test_cleanup_expired_workspaces_and_uploads(self) -> None:
+        ws_root = bot.CONFIG.workspace_root
+        uploads_dir = ws_root / "uploads" / "chat_123"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        expired_file = uploads_dir / "old_image.png"
+        expired_file.write_text("old image bytes")
+
+        fresh_file = uploads_dir / "new_image.png"
+        fresh_file.write_text("new image bytes")
+
+        sched_ws = bot.CONFIG.schedule_db_path.parent / "workspaces" / "schedule-99"
+        sched_ws.mkdir(parents=True, exist_ok=True)
+        expired_sched_file = sched_ws / "old_report.txt"
+        expired_sched_file.write_text("old report")
+
+        # Set mtime to 40 days ago
+        now = time.time()
+        forty_days_ago = now - (40 * 86400)
+        os.utime(expired_file, (forty_days_ago, forty_days_ago))
+        os.utime(expired_sched_file, (forty_days_ago, forty_days_ago))
+
+        deleted = bot.cleanup_expired_workspaces_and_uploads(
+            workspace_root=ws_root,
+            state_dir=bot.CONFIG.state_db_path,
+            schedule_db_path=bot.CONFIG.schedule_db_path,
+            max_age_days=30,
+        )
+        self.assertEqual(deleted, 2)
+        self.assertFalse(expired_file.exists())
+        self.assertFalse(expired_sched_file.exists())
+        self.assertTrue(fresh_file.exists())
+
+    async def test_multi_admin_schedule_broadcast(self) -> None:
+        object.__setattr__(bot.CONFIG, "allowed_user_ids", frozenset({1001, 1002}))
+        schedule = bot.SCHEDULE_STORE.add(
+            cron_expr="0 * * * *",
+            timezone_name="UTC",
+            original_prompt="多管理員檢查",
+            prompt_template="檢查狀態",
+            now=datetime(2026, 8, 30, 0, 0, tzinfo=UTC),
+        )
+        due = bot.SCHEDULE_STORE.claim_due(
+            datetime(2026, 8, 30, 1, 0, tzinfo=UTC)
+        )[0]
+        telegram_bot = FakeTelegramBot()
+        application = SimpleNamespace(bot=telegram_bot)
+        result = ProcessResult(0, "巡檢正常", "")
+        with patch("bot.run_agy", AsyncMock(return_value=result)):
+            await bot._execute_due_schedule(application, due)
+
+        # Both admins receive notifications
+        recipient_ids = {m["chat_id"] for m in telegram_bot.messages}
+        self.assertEqual(recipient_ids, {1001, 1002})
 
     async def test_scheduled_run_reports_and_records_success(self) -> None:
         schedule = bot.SCHEDULE_STORE.add(
