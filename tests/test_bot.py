@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import tempfile
 import unittest
@@ -31,6 +32,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         workdir.mkdir()
         self.previous_config = bot.CONFIG
         self.previous_store = bot.SCHEDULE_STORE
+        self.previous_chat_store = bot.CHAT_STATE_STORE
         bot.CONFIG = BotConfig(
             bot_token=VALID_TOKEN,
             allowed_user_id=123456789,
@@ -45,11 +47,14 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
             schedule_min_interval_minutes=15,
             schedule_max_tasks=20,
         )
+        from chat_state import ChatStateStore
         bot.SCHEDULE_STORE = ScheduleStore(bot.CONFIG.schedule_db_path)
+        bot.CHAT_STATE_STORE = ChatStateStore(bot.CONFIG.state_db_path)
 
     async def asyncTearDown(self) -> None:
         bot.CONFIG = self.previous_config
         bot.SCHEDULE_STORE = self.previous_store
+        bot.CHAT_STATE_STORE = self.previous_chat_store
         self.tempdir.cleanup()
 
     async def test_prompt_builder_never_receives_full_permission_flag(self) -> None:
@@ -68,6 +73,96 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("--dangerously-skip-permissions", args)
         self.assertIn("--add-dir", args)
         self.assertEqual(mocked.await_args.kwargs["cwd"], isolated)
+
+    async def test_effort_flag_omitted_for_models_with_baked_in_effort(self) -> None:
+        chat_id = 555
+        bot.CHAT_STATE_STORE.update(chat_id, model="gemini-3.7-flash-medium", effort="high")
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("hi", chat_id=chat_id, continue_conversation=False)
+        args = mocked.await_args.args[0]
+        self.assertIn("gemini-3.7-flash-medium", args)
+        self.assertNotIn("--effort", args)
+
+    async def test_effort_flag_kept_for_models_without_baked_in_effort(self) -> None:
+        chat_id = 556
+        bot.CHAT_STATE_STORE.update(chat_id, model="claude-sonnet-4-6", effort="high")
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("hi", chat_id=chat_id, continue_conversation=False)
+        args = mocked.await_args.args[0]
+        self.assertIn("--effort", args)
+        self.assertIn("high", args)
+
+    async def test_each_chat_gets_its_own_dedicated_workdir(self) -> None:
+        # Regression test for a real cross-chat conversation leak: bare
+        # `--continue` resumes "the most recently active conversation in this
+        # cwd" -- if two chats shared config.agy_workdir as cwd, chat B's
+        # --continue could silently resume chat A's conversation. Each chat_id
+        # must get its own dedicated, distinct cwd.
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("hi", chat_id=901, continue_conversation=True)
+        cwd_a = mocked.await_args.kwargs["cwd"]
+
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("hi", chat_id=902, continue_conversation=True)
+        cwd_b = mocked.await_args.kwargs["cwd"]
+
+        self.assertNotEqual(cwd_a, cwd_b)
+        self.assertNotEqual(cwd_a, bot.CONFIG.agy_workdir)
+        self.assertNotEqual(cwd_b, bot.CONFIG.agy_workdir)
+        # The real project workdir must still be reachable via --add-dir since
+        # cwd moved away from it.
+        args_a = mocked.await_args.args[0]
+        self.assertIn(str(bot.CONFIG.agy_workdir), args_a)
+
+    async def test_explicit_workdir_override_is_respected(self) -> None:
+        # Callers that already pass their own isolated workdir (schedules,
+        # the prompt-builder call) must not be redirected to a per-chat dir.
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        custom = bot.CONFIG.schedule_db_path.parent / "workspaces" / "schedule-1"
+        custom.mkdir(parents=True, exist_ok=True)
+        with patch("bot.run_process", mocked):
+            await bot.run_agy(
+                "hi", chat_id=903, continue_conversation=False, workdir=custom
+            )
+        self.assertEqual(mocked.await_args.kwargs["cwd"], custom)
+
+    async def test_pending_context_is_injected_once_then_consumed(self) -> None:
+        # /usage, /context etc. run through a separate query path that never
+        # touches the chat's own conversation, so a normal follow-up question
+        # has no memory of what the report said. queue_context_injection lets
+        # the report ride along as extra context on the very next turn only.
+        chat_id = 904
+        bot.queue_context_injection(chat_id, "剩餘配額：42%")
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("解說使用量", chat_id=chat_id, continue_conversation=True)
+        first_prompt = mocked.await_args.args[0][2]
+        self.assertIn("剩餘配額：42%", first_prompt)
+        self.assertIn("解說使用量", first_prompt)
+
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("再問一次", chat_id=chat_id, continue_conversation=True)
+        second_prompt = mocked.await_args.args[0][2]
+        self.assertNotIn("剩餘配額：42%", second_prompt)
+
+    async def test_pending_context_expires_after_ttl(self) -> None:
+        chat_id = 905
+        bot.queue_context_injection(chat_id, "過期的報告內容")
+        # Simulate the entry having been queued long before its TTL.
+        _queued_at, report_text = bot._PENDING_CONTEXT[chat_id]
+        bot._PENDING_CONTEXT[chat_id] = (
+            asyncio.get_event_loop().time() - bot._PENDING_CONTEXT_TTL_SECONDS - 1,
+            report_text,
+        )
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("bot.run_process", mocked):
+            await bot.run_agy("hi", chat_id=chat_id, continue_conversation=True)
+        prompt = mocked.await_args.args[0][2]
+        self.assertNotIn("過期的報告內容", prompt)
 
     async def test_scheduled_run_reports_and_records_success(self) -> None:
         schedule = bot.SCHEDULE_STORE.add(
@@ -323,6 +418,8 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         bot_mock = SimpleNamespace(send_chat_action=AsyncMock())
         context = SimpleNamespace(bot=bot_mock)
 
+        # 1. Test compact mode (edits status_msg)
+        object.__setattr__(bot.CONFIG, "progress_mode", "compact")
         result = ProcessResult(0, "你好！我是國網AI助理", "")
         with patch("bot.run_agy", AsyncMock(return_value=result)):
             await bot.handle_message(update, context)
@@ -330,6 +427,13 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         msg.reply_text.assert_awaited()
         first_call = msg.reply_text.await_args_list[0]
         self.assertEqual(first_call.args[0], bot.CONFIG.waiting_message)
+        status_msg.edit_text.assert_awaited_with("✅ 執行完成。")
+
+        # 2. Test delete mode (deletes status_msg)
+        object.__setattr__(bot.CONFIG, "progress_mode", "delete")
+        status_msg.delete.reset_mock()
+        with patch("bot.run_agy", AsyncMock(return_value=result)):
+            await bot.handle_message(update, context)
         status_msg.delete.assert_awaited_once()
 
 

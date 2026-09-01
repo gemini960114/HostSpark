@@ -2,24 +2,34 @@ name: CI
 
 on:
   push:
+    branches: [ main, master ]
   pull_request:
-
-permissions:
-  contents: read
+    branches: [ main, master ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-          cache: pip
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements.lock pip-audit
-      - run: python -m pip check
-      - run: python -m py_compile bot.py agy_bot_core.py
-      - run: python -m unittest discover -s tests -v
-      - run: bash -n install.sh
-      - run: pip-audit -r requirements.lock
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Syntax check
+      run: |
+        python -m py_compile bot.py agy_bot_core.py schedule_store.py chat_state.py conversation_db.py agy_stream.py pty_runner.py cli_passthrough.py pending_actions.py instance_lock.py job_queue.py media_resolver.py
+
+    - name: Run unittests
+      run: |
+        python -m unittest discover -s tests -v

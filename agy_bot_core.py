@@ -4,7 +4,7 @@ import os
 import re
 import signal
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextlib import suppress
 from pathlib import Path
 from typing import Mapping
@@ -16,7 +16,14 @@ SECRET_VALUE_RE = re.compile(
     r"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY)[A-Z0-9_]*)\s*=\s*([^\s]+)"
 )
 BOT_TOKEN_RE = re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b")
+TELEGRAM_API_URL_RE = re.compile(r"(https?://api\.telegram\.org/bot)\d+:[A-Za-z0-9_-]{20,}")
 BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/-]+=*")
+AWS_KEY_RE = re.compile(r"\b(AKIA[0-9A-Z]{16})\b")
+SSH_PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN [A-Z0-9_\s-]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9_\s-]*PRIVATE KEY-----"
+)
+JWT_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{4,}\b")
+
 DEFAULT_BOT_NAME = "HostSpark"
 DEFAULT_WAITING_MESSAGE = f"⏳ {DEFAULT_BOT_NAME} 正在思考與執行中，請稍候..."
 
@@ -28,7 +35,6 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class BotConfig:
     bot_token: str
-    allowed_user_id: int
     agy_bin: Path
     agy_workdir: Path
     permission_mode: str
@@ -39,8 +45,37 @@ class BotConfig:
     schedule_timezone: str
     schedule_min_interval_minutes: int
     schedule_max_tasks: int
+    allowed_user_id: int = 0
+    allowed_user_ids: frozenset[int] = field(default_factory=frozenset)
+    allowed_chat_ids: frozenset[int] = field(default_factory=frozenset)
+    state_db_path: Path = Path()
+    workspace_root: Path = Path()
+    allowed_models: tuple[str, ...] = ()
+    conversation_db_path: Path | None = None
+    private_only: bool = True
+    progress_mode: str = "compact"  # full | compact | delete
+    auto_interrupt: bool = True
+    allow_bot_update: bool = False
+    default_model: str | None = None
+    default_effort: str = "high"
+    default_mode: str = "plan"
+    default_sandbox: bool = True
+    default_verbose: str = "compact"
     waiting_message: str = DEFAULT_WAITING_MESSAGE
     bot_name: str = DEFAULT_BOT_NAME
+
+    def __post_init__(self):
+        if not self.allowed_user_ids and self.allowed_user_id:
+            object.__setattr__(self, "allowed_user_ids", frozenset({self.allowed_user_id}))
+        elif self.allowed_user_ids and not self.allowed_user_id:
+            object.__setattr__(self, "allowed_user_id", next(iter(sorted(self.allowed_user_ids))))
+
+        if not self.state_db_path or str(self.state_db_path) == ".":
+            default_state = self.schedule_db_path.parent / "chat_state.db"
+            object.__setattr__(self, "state_db_path", default_state)
+
+        if not self.workspace_root or str(self.workspace_root) == ".":
+            object.__setattr__(self, "workspace_root", self.agy_workdir)
 
 
 @dataclass(frozen=True)
@@ -51,6 +86,42 @@ class ProcessResult:
     timed_out: bool = False
     stdout_truncated: bool = False
     stderr_truncated: bool = False
+
+
+def safe_join(base: Path, *parts: str | Path) -> Path:
+    resolved_base = base.expanduser().resolve()
+    current = resolved_base
+    for part in parts:
+        part_path = Path(part)
+        if part_path.is_absolute():
+            resolved_abs = part_path.resolve()
+            if not (resolved_abs == resolved_base or resolved_base in resolved_abs.parents):
+                raise ValueError(f"絕對路徑不在基礎目錄內：{part_path}")
+            current = resolved_abs
+        else:
+            current = (current / part_path).resolve()
+            if not (current == resolved_base or resolved_base in current.parents):
+                raise ValueError(f"路徑穿越已被防護阻止：{part}")
+    return current
+
+
+def build_safe_subprocess_env(extra_path: Path | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    for var in (
+        "TELEGRAM_BOT_TOKEN",
+        "BOT_TOKEN",
+        "ALLOWED_USER_ID",
+        "ALLOWED_USER_IDS",
+        "ALLOWED_CHAT_IDS",
+        "TELEGRAM_ALLOWED_USER_IDS",
+        "TELEGRAM_ALLOWED_CHAT_IDS",
+    ):
+        env.pop(var, None)
+    env["NO_COLOR"] = "1"
+    env["TERM"] = "dumb"
+    if extra_path:
+        env["PATH"] = f"{extra_path}{os.pathsep}{env.get('PATH', '')}"
+    return env
 
 
 async def _read_stream_limited(
@@ -145,6 +216,13 @@ def _positive_int(value: str, name: str, minimum: int, maximum: int) -> int:
     return parsed
 
 
+def _bool_val(value: str, default: bool = False) -> bool:
+    if not value:
+        return default
+    v = value.strip().lower()
+    return v in {"1", "true", "yes", "on"}
+
+
 def _resolve_executable(value: str | None) -> Path | None:
     if value:
         expanded = Path(value).expanduser()
@@ -168,9 +246,33 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
     if not TELEGRAM_TOKEN_RE.fullmatch(bot_token) or bot_token.startswith("123456789:"):
         raise ConfigError("TELEGRAM_BOT_TOKEN 未設定或格式無效")
 
-    allowed_user_id = _positive_int(
-        env.get("ALLOWED_USER_ID", ""), "ALLOWED_USER_ID", 1, 9_223_372_036_854_775_807
-    )
+    # Allowed user IDs (comma-separated or single)
+    raw_user_ids = env.get("ALLOWED_USER_IDS", "").strip() or env.get("ALLOWED_USER_ID", "").strip()
+    if not raw_user_ids:
+        raise ConfigError("ALLOWED_USER_IDS 或 ALLOWED_USER_ID 必須設定")
+
+    allowed_user_ids_set: set[int] = set()
+    for item in raw_user_ids.split(","):
+        cleaned = item.strip()
+        if cleaned:
+            uid = _positive_int(cleaned, "ALLOWED_USER_IDS", 1, 9_223_372_036_854_775_807)
+            allowed_user_ids_set.add(uid)
+    if not allowed_user_ids_set:
+        raise ConfigError("ALLOWED_USER_IDS 必須包含至少一個有效的使用者 ID")
+
+    # Allowed chat IDs (optional comma-separated)
+    raw_chat_ids = env.get("ALLOWED_CHAT_IDS", "").strip()
+    allowed_chat_ids_set: set[int] = set()
+    if raw_chat_ids:
+        for item in raw_chat_ids.split(","):
+            cleaned = item.strip()
+            if cleaned:
+                try:
+                    allowed_chat_ids_set.add(int(cleaned))
+                except ValueError as exc:
+                    raise ConfigError(f"ALLOWED_CHAT_IDS 包含無效的 chat ID：{cleaned}") from exc
+
+    private_only = _bool_val(env.get("TELEGRAM_PRIVATE_ONLY", "1"), default=True)
 
     permission_mode = env.get("AGY_PERMISSION_MODE", "").strip().lower()
     if permission_mode not in {"safe", "full"}:
@@ -183,6 +285,11 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
     workdir = Path(env.get("AGY_WORKDIR", "").strip() or Path.home()).expanduser().resolve()
     if not workdir.is_dir():
         raise ConfigError(f"AGY_WORKDIR 不存在或不是目錄：{workdir}")
+
+    workspace_root_env = env.get("AGY_WORKSPACE_ROOT", "").strip()
+    workspace_root = Path(workspace_root_env).expanduser().resolve() if workspace_root_env else workdir
+    if not workspace_root.is_dir():
+        raise ConfigError(f"AGY_WORKSPACE_ROOT 不存在或不是目錄：{workspace_root}")
 
     timeout_seconds = _positive_int(
         env.get("AGY_TIMEOUT_SECONDS", "600"), "AGY_TIMEOUT_SECONDS", 10, 3600
@@ -207,6 +314,44 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
     if schedule_db_path.exists() and not schedule_db_path.is_file():
         raise ConfigError(f"AGY_SCHEDULE_DB_PATH 不是檔案：{schedule_db_path}")
 
+    state_db_path = Path(
+        env.get("AGY_STATE_DB_PATH", "").strip()
+        or schedule_db_path.parent / "chat_state.db"
+    ).expanduser().resolve()
+    if state_db_path.exists() and not state_db_path.is_file():
+        raise ConfigError(f"AGY_STATE_DB_PATH 不是檔案：{state_db_path}")
+
+    conv_db_env = env.get("AGY_CONVERSATION_DB_PATH", "").strip()
+    conversation_db_path = Path(conv_db_env).expanduser().resolve() if conv_db_env else None
+
+    allowed_models_raw = env.get("AGY_ALLOWED_MODELS", "").strip()
+    allowed_models = tuple(
+        m.strip() for m in allowed_models_raw.split(",") if m.strip()
+    ) if allowed_models_raw else ()
+
+    progress_mode = env.get("AGY_PROGRESS_MODE", "").strip() or env.get("TELEGRAM_PROGRESS_MODE", "").strip() or "compact"
+    progress_mode = progress_mode.lower()
+    if progress_mode not in {"full", "compact", "delete"}:
+        progress_mode = "compact"
+
+    auto_interrupt = _bool_val(env.get("AGY_AUTO_INTERRUPT", "1"), default=True)
+    allow_bot_update = _bool_val(env.get("ALLOW_BOT_UPDATE", "0"), default=False)
+
+    default_model = env.get("AGY_MODEL", "").strip() or None
+    default_effort = env.get("AGY_EFFORT", "").strip().lower() or "high"
+    if default_effort not in {"low", "medium", "high"}:
+        default_effort = "high"
+
+    default_mode = env.get("AGY_MODE", "").strip().lower() or "plan"
+    if default_mode not in {"plan", "accept-edits"}:
+        default_mode = "plan"
+
+    default_sandbox = _bool_val(env.get("AGY_SANDBOX", "1"), default=True)
+
+    default_verbose = env.get("AGY_VERBOSE", "").strip().lower() or "compact"
+    if default_verbose not in {"detailed", "compact", "silent"}:
+        default_verbose = "compact" 
+
     schedule_min_interval_minutes = _positive_int(
         env.get("AGY_SCHEDULE_MIN_INTERVAL_MINUTES", "15"),
         "AGY_SCHEDULE_MIN_INTERVAL_MINUTES",
@@ -226,14 +371,28 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
 
     return BotConfig(
         bot_token=bot_token,
-        allowed_user_id=allowed_user_id,
+        allowed_user_ids=frozenset(allowed_user_ids_set),
+        allowed_chat_ids=frozenset(allowed_chat_ids_set),
         agy_bin=agy_bin,
         agy_workdir=workdir,
+        workspace_root=workspace_root,
         permission_mode=permission_mode,
         rule_prompt=env.get("AGY_RULE_PROMPT", "").strip(),
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
         schedule_db_path=schedule_db_path,
+        state_db_path=state_db_path,
+        conversation_db_path=conversation_db_path,
+        allowed_models=allowed_models,
+        private_only=private_only,
+        progress_mode=progress_mode,
+        auto_interrupt=auto_interrupt,
+        allow_bot_update=allow_bot_update,
+        default_model=default_model,
+        default_effort=default_effort,
+        default_mode=default_mode,
+        default_sandbox=default_sandbox,
+        default_verbose=default_verbose,
         schedule_timezone=schedule_timezone,
         schedule_min_interval_minutes=schedule_min_interval_minutes,
         schedule_max_tasks=schedule_max_tasks,
@@ -248,9 +407,109 @@ def compose_agy_prompt(user_text: str, rule_prompt: str) -> str:
     return f"{rule_prompt}\n\n使用者請求：\n{user_text}"
 
 
+_MODEL_EFFORT_SUFFIX_RE = re.compile(r"-(high|medium|low)$", re.IGNORECASE)
+
+
+def model_has_baked_in_effort(model: str | None) -> bool:
+    """判斷模型名稱是否已內建推理深度（例如 `gemini-3.7-flash-high`、`gpt-oss-120b-medium`）。
+
+    這類模型的名稱後綴本身就是 effort 等級，若同時再帶 `--effort` 給 agy，
+    只要跟後綴不一致就會被 agy 拒絕（`--model X-medium conflicts with --effort=high`）。
+    因此組裝 argv 時，這類模型一律不應該額外附加 `--effort` 旗標。
+    """
+    if not model:
+        return False
+    return bool(_MODEL_EFFORT_SUFFIX_RE.search(model.strip()))
+
+
+_CN_DIGITS = {
+    "零": 0, "一": 1, "二": 2, "兩": 2, "三": 3, "四": 4,
+    "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+}
+
+
+def _cn_num_to_int(token: str) -> int | None:
+    """把「五」、「十五」、「二十」這類中文數字（或阿拉伯數字字串）轉成 int，失敗回傳 None。"""
+    token = token.strip()
+    if not token:
+        return None
+    if token.isdigit():
+        return int(token)
+    if "十" in token:
+        tens_part, _, ones_part = token.partition("十")
+        tens = _CN_DIGITS.get(tens_part, 1) if tens_part else 1
+        ones = _CN_DIGITS.get(ones_part, 0) if ones_part else 0
+        return tens * 10 + ones
+    return _CN_DIGITS.get(token)
+
+
+_RECUR_MINUTE_RE = re.compile(r"每\s*([0-9一二三四五六七八九十兩]{1,4})\s*分鐘")
+_RECUR_HOUR_RE = re.compile(r"每\s*([0-9一二三四五六七八九十兩]{1,4})\s*(?:個)?小時")
+_DAILY_TIME_RE = re.compile(r"每天.{0,6}?(\d{1,2})[:：](\d{2})")
+_FULL_DATE_TIME_RE = re.compile(r"(\d{1,2})\s*月\s*(\d{1,2})\s*日.{0,10}?(\d{1,2})[:：](\d{2})")
+_BARE_TIME_RE = re.compile(r"(\d{1,2})[:：](\d{2})(?:[:：]\d{2})?")
+_SCHEDULE_INTENT_RE = re.compile(
+    r"排程|提醒我|叫我|通知我|跟我說|喊我|叫醒我|到時候提醒"
+)
+
+
+def detect_schedule_intent(text: str) -> tuple[str, str] | None:
+    """偵測純文字中的排程／未來時間意圖，回傳 `(cron_expr, task_text)`；偵測不到則回傳 None。
+
+    這是路由層的**決定性**攔截，不依賴 AGY／LLM 自行判斷——命中時訊息不會被送去給
+    AGY 執行單次對話，而是直接餵給既有的 `/schedule_add` 建立流程（保留 AGY 整理 prompt
+    ＋ Telegram 按鈕二次確認），避免 AGY 為了「等到那個時間」而在單次非互動呼叫中卡住，
+    佔用全域任務佇列，也不需要使用者自己複製貼上指令再送一次。
+    「每 N 分鐘／小時」這類重複性描述本身已是清楚訊號，不需要額外的意圖關鍵字；
+    單一日期／時間點的描述則需搭配「排程」「提醒我」等意圖關鍵字才觸發，降低誤判。
+    """
+    if not text:
+        return None
+    stripped = text.strip()
+
+    m = _RECUR_MINUTE_RE.search(text)
+    if m:
+        n = _cn_num_to_int(m.group(1))
+        if n and 1 <= n <= 59:
+            return f"*/{n} * * * *", stripped
+
+    m = _RECUR_HOUR_RE.search(text)
+    if m:
+        n = _cn_num_to_int(m.group(1))
+        if n and 1 <= n <= 23:
+            return f"0 */{n} * * *", stripped
+
+    has_intent = bool(_SCHEDULE_INTENT_RE.search(text))
+
+    if has_intent:
+        m = _DAILY_TIME_RE.search(text)
+        if m:
+            hh, mm = int(m.group(1)), int(m.group(2))
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{mm} {hh} * * *", stripped
+
+        m = _FULL_DATE_TIME_RE.search(text)
+        if m:
+            month, day, hh, mm = (int(g) for g in m.groups())
+            if 1 <= month <= 12 and 1 <= day <= 31 and 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{mm} {hh} {day} {month} *", stripped
+
+        m = _BARE_TIME_RE.search(text)
+        if m:
+            hh, mm = int(m.group(1)), int(m.group(2))
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{mm} {hh} * * *", stripped
+
+    return None
+
+
 def redact_sensitive(text: str) -> str:
     text = BOT_TOKEN_RE.sub("[REDACTED_TELEGRAM_TOKEN]", text)
+    text = TELEGRAM_API_URL_RE.sub(r"\1[REDACTED_TELEGRAM_TOKEN]", text)
     text = BEARER_RE.sub("Bearer [REDACTED]", text)
+    text = AWS_KEY_RE.sub("[REDACTED_AWS_KEY]", text)
+    text = SSH_PRIVATE_KEY_RE.sub("[REDACTED_SSH_PRIVATE_KEY]", text)
+    text = JWT_RE.sub("[REDACTED_JWT]", text)
     return SECRET_VALUE_RE.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
 
 
@@ -274,6 +533,19 @@ def split_markdown_into_chunks(text: str, max_chunk_size: int = 3500) -> list[st
 
 
 def md_to_telegram_html(text: str) -> str:
+    def replace_callout(match: re.Match[str]) -> str:
+        kind = match.group(1).upper()
+        emoji = "💡"
+        if kind in {"WARNING", "CAUTION"}:
+            emoji = "⚠️"
+        elif kind in {"IMPORTANT", "CRITICAL"}:
+            emoji = "❗"
+        elif kind == "TIP":
+            emoji = "✨"
+        return f"{emoji} <b>{kind}</b>:\n"
+
+    text = re.sub(r"^>\s*\[!([A-Z]+)\]\s*", replace_callout, text, flags=re.MULTILINE)
+
     code_blocks: list[tuple[str, str]] = []
 
     def save_code_block(match: re.Match[str]) -> str:
