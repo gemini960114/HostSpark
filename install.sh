@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 if [[ "$EUID" -eq 0 ]]; then
-    echo "❌ 請以要執行 Bot 的一般 Ubuntu 使用者執行 ./install.sh，不要直接使用 root。"
+    echo "❌ Please run ./install.sh as the regular Ubuntu user that will run the bot; do not run it as root."
     exit 1
 fi
 
@@ -16,7 +16,7 @@ SERVICE_NAME="agy-telegram.service"
 SERVICE_PATH="/etc/systemd/system/$SERVICE_NAME"
 
 echo "======================================================"
-echo " 安裝 Antigravity Telegram Ubuntu VM 控制服務"
+echo " Installing the Antigravity Telegram Ubuntu VM control service"
 echo "======================================================"
 
 if command -v agy >/dev/null 2>&1; then
@@ -24,33 +24,33 @@ if command -v agy >/dev/null 2>&1; then
 elif [[ -x "$USER_HOME/.local/bin/agy" ]]; then
     AGY_PATH="$USER_HOME/.local/bin/agy"
 else
-    echo "❌ 找不到 agy。請先安裝、登入並確認 agy --version 可執行。"
+    echo "❌ agy not found. Install it, log in, and confirm 'agy --version' works before retrying."
     exit 1
 fi
 AGY_BIN_DIR="$(cd "$(dirname "$AGY_PATH")" && pwd)"
 
 if command -v uv >/dev/null 2>&1; then
     if [[ ! -x "venv/bin/python" ]]; then
-        echo "建立 uv 虛擬環境..."
+        echo "Creating uv virtual environment..."
         uv venv venv
     fi
-    echo "同步 Python 依賴..."
+    echo "Syncing Python dependencies..."
     uv pip install --python venv/bin/python -r requirements.lock
 else
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "安裝 Python3 與 venv..."
+        echo "Installing Python3 and venv..."
         sudo apt-get update
         sudo apt-get install -y python3-pip python3-venv
     fi
     if [[ ! -x "venv/bin/python" ]]; then
-        echo "建立 Python 虛擬環境..."
+        echo "Creating Python virtual environment..."
         if ! python3 -m venv venv; then
             sudo apt-get update
             sudo apt-get install -y python3-venv
             python3 -m venv venv
         fi
     fi
-    echo "同步 Python 依賴..."
+    echo "Syncing Python dependencies..."
     venv/bin/python -m pip install --upgrade pip
     venv/bin/python -m pip install -r requirements.lock
 fi
@@ -58,12 +58,12 @@ fi
 if [[ ! -f ".env" ]]; then
     cp .env.example .env
     chmod 600 .env
-    echo "❌ 已建立 $SCRIPT_DIR/.env。請填入 Token、User ID 與 AGY_PERMISSION_MODE 後重新執行安裝。"
+    echo "❌ Created $SCRIPT_DIR/.env. Fill in the Token, User ID, and AGY_PERMISSION_MODE, then re-run the installer."
     exit 2
 fi
 chmod 600 .env
 
-echo "驗證 Bot 設定..."
+echo "Validating bot configuration..."
 venv/bin/python bot.py --check-config
 
 SERVICE_TMP="$(mktemp)"
@@ -100,19 +100,19 @@ LockPersonality=true
 WantedBy=multi-user.target
 SYSTEMD_EOF
 
-echo "安裝 systemd 服務..."
+echo "Installing systemd service..."
 sudo install -m 0644 "$SERVICE_TMP" "$SERVICE_PATH"
 sudo systemctl daemon-reload
 sudo systemctl enable --now "$SERVICE_NAME"
 
 if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
-    echo "❌ 服務啟動失敗："
+    echo "❌ Service failed to start:"
     sudo systemctl status "$SERVICE_NAME" --no-pager
     exit 1
 fi
 
 echo "======================================================"
-echo "✅ 安裝完成，服務已啟動。"
-echo "查看狀態：sudo systemctl status $SERVICE_NAME"
-echo "查看日誌：sudo journalctl -u $SERVICE_NAME -f"
+echo "✅ Installation complete, service is running."
+echo "Check status: sudo systemctl status $SERVICE_NAME"
+echo "Check logs:   sudo journalctl -u $SERVICE_NAME -f"
 echo "======================================================"

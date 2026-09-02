@@ -1,45 +1,47 @@
-# HostSpark (Antigravity CLI Telegram Linux VM Agent)
+*English | [繁體中文](README.zh-TW.md)*
+
+# HostSpark
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-**HostSpark** 是一個專為 Linux / Ubuntu 主機設計的 24/7 自主 AI 代理系統，透過 Telegram 與 Antigravity CLI (`agy`) 將主機轉化為隨身可控的專屬工程師與維運助手。正式支援目標是國網、晶創雲、各大雲端 VPS 與採用一般 Ubuntu 使用者與 systemd 的伺服器。
+**HostSpark** is a 24/7 autonomous AI agent system built for Linux/Ubuntu hosts. It bridges Telegram and the Antigravity CLI (`agy`) to turn a host into a personal engineer and ops assistant you can control from your phone. Officially targeted at Taiwan's national research network (TWNIC), Chunghwa Telecom's cloud, other major cloud VPS providers, and any server running a regular Ubuntu user with systemd.
 
-本專案不是另一套 AI Agent 框架，也不自行實作模型、推理引擎或電腦控制工具。Telegram 負責提供手機通訊介面，本 Bot 只負責授權驗證、請求轉送、串流即時輸出、工作階段隔離、定時觸發、timeout、錯誤處理及訊息格式；真正的 AI 推理、工具調用、檔案操作與系統控制能力均由 AGY 提供。
+This project is not another AI agent framework, and it does not implement its own model, reasoning engine, or computer-control tools. Telegram provides the mobile messaging interface; this bot is only responsible for authorization, request forwarding, live streaming output, session isolation, scheduled triggers, timeouts, error handling, and message formatting. The actual AI reasoning, tool calls, file operations, and system control are all provided by AGY.
 
 ```text
-Telegram (手機 / 桌面)
+Telegram (mobile / desktop)
    ↓
-HostSpark Bot（身分授權／Per-chat 狀態／佇列控制／串流即時更新／排程器）
-   ↓ (非 shell 安全調用，環境隔離，機密過濾)
-AGY CLI（模型推理／工具操作／上下文管理／工作階段）
+HostSpark Bot (auth / per-chat state / queue control / live streaming updates / scheduler)
+   ↓ (no-shell subprocess calls, environment isolation, secret scrubbing)
+AGY CLI (model reasoning / tool calls / context management / sessions)
    ↓
-Ubuntu VM（檔案系統／Docker 容器／系統服務／硬體資源）
+Ubuntu VM (filesystem / Docker containers / system services / hardware resources)
 ```
 
 > [!WARNING]
-> 這是遠端 VM 管理工具，不是一般聊天機器人。Full 模式會自動核准 AGY 的所有工具操作；Telegram 帳號或 Bot Token 失守時，VM 也可能失守。請先閱讀 [SECURITY.md](SECURITY.md)。
+> This is a remote VM management tool, not a general-purpose chatbot. Full mode auto-approves every tool operation AGY requests; if your Telegram account or Bot Token is compromised, the VM can be compromised too. Read [SECURITY.md](SECURITY.md) first.
 
-## ✨ 核心特色與功能
+## ✨ Key Features
 
-- **多使用者與 Chat 白名單授權**：支援 `ALLOWED_USER_IDS` 與 `ALLOWED_CHAT_IDS`，支援私訊限制開關 `TELEGRAM_PRIVATE_ONLY`。
-- **Per-Chat 獨立狀態管理**：每個 Chat / 使用者各自擁有獨立的 Model、Effort、Mode、Sandbox、Verbose 與 Workspace 設定，互不干擾。
-- **即時串流輸出（Live Stream Feedback）**：即時回報思考與工具執行中進度，並支援可設定的進度結束模式（`full` / `compact` / `delete`）。
-- **對話工作階段管理**：`/new` / `/clear` 開啟全新 Session；每個 Chat 擁有專屬的 AGY 工作目錄，彼此對話內容互不干擾。
-- **多模態附件與檔案互動**：支援上傳圖片、文件（`.py`, `.log`, `.pdf`, `.json` 等）直接交由 AGY 分析；AGY 產生的圖片與報表自動透過 Telegram 傳回。
-- **配額與使用量即時查詢**：`/usage` / `/quota` / `/credits` 提供結構化進度指標（🟢/🟡/🔴/⭐/⚪ 視覺化標籤與進度落差分析）；`/context` 檢視上下文明細。
-- **安全 CLI Passthrough 與兩階段確認**：`/agy [ARGS]` 支援原生 CLI 旗標（強制阻擋 `-i` 互動死鎖，危險指令自動觸發確認）。
-- **主機層級定時任務（Scheduler）**：SQLite 持久化、五欄 cron、執行時變數模板、3次失敗自動熔斷保護；執行結果與熔斷警告會廣播給**全部**已授權管理員（多組 `ALLOWED_USER_IDS` 時每位都會收到）。
-- **任務佇列與 Auto-Interrupt 合併**：全域單一序列化佇列，連續傳送訊息時自動以 `[Update / Follow-up]` 智慧合併前次指示。
-- **進程鎖與崩潰自動恢復**：單一實例鎖（PID 檢查與殘留鎖自動接管）；Bot 重啟時自動恢復未完成任務。
-- **每日自動清理**：排程迴圈每天例行清除 `uploads/`、per-chat 與排程專屬工作目錄裡超過 30 天的暫存檔案，避免長期 24/7 運行塞爆磁碟。
-- **機密遮罩與安全隔離**：子程序自動過濾 Telegram Token、User ID 白名單、AWS Key、SSH 私鑰與 JWT。
+- **Multi-user & chat allowlist authorization**: supports `ALLOWED_USER_IDS` and `ALLOWED_CHAT_IDS`, plus a `TELEGRAM_PRIVATE_ONLY` switch to restrict the bot to private chats.
+- **Independent per-chat state**: each chat/user has its own Model, Effort, Mode, Sandbox, Verbose, and Workspace settings that never interfere with each other.
+- **Live stream feedback**: reports thinking/tool-execution progress in real time, with a configurable end-of-run display mode (`full` / `compact` / `delete`).
+- **Conversation session management**: `/new` / `/clear` start a fresh session; every chat gets its own dedicated AGY working directory so conversations never bleed into each other.
+- **Multimodal attachments & file interaction**: upload images or documents (`.py`, `.log`, `.pdf`, `.json`, etc.) directly for AGY to analyze; images and reports AGY produces are sent back automatically via Telegram.
+- **Real-time quota & usage lookups**: `/usage` / `/quota` / `/credits` provide structured progress indicators (🟢/🟡/🔴/⭐/⚪ visual tags with pace-vs-time-elapsed analysis); `/context` shows context usage details.
+- **Secure CLI passthrough with two-phase confirmation**: `/agy [ARGS]` supports native CLI flags (interactive `-i` deadlocks are hard-blocked; dangerous commands trigger a confirmation step automatically).
+- **Host-level scheduler**: SQLite-backed persistence, standard 5-field cron, runtime variable templates, and an auto-circuit-breaker after 3 consecutive failures; execution results and circuit-breaker warnings are broadcast to **every** authorized admin (all of them, if you configure multiple `ALLOWED_USER_IDS`).
+- **Job queue with auto-interrupt merging**: a single global serialized queue; sending a follow-up message while a task is running automatically merges it into the active task as `[Update / Follow-up]` instead of queuing separately.
+- **Instance lock & crash auto-recovery**: a single-instance lock (with stale-lock takeover) plus automatic recovery of interrupted tasks after a bot restart.
+- **Daily automatic cleanup**: the scheduler loop routinely purges `uploads/`, per-chat, and per-schedule working-directory files older than 30 days, so long-running 24/7 operation doesn't fill up disk.
+- **Secret scrubbing & sandboxing**: subprocesses automatically strip the Telegram Token, the User ID allowlist, AWS keys, SSH private keys, and JWTs from their environment.
 
 ---
 
-## ⚙️ 環境設定（.env）
+## ⚙️ Configuration (.env)
 
-建立設定檔：
+Create the config file:
 
 ```bash
 cp .env.example .env
@@ -47,167 +49,167 @@ chmod 600 .env
 nano .env
 ```
 
-### 核心設定項目：
+### Core settings:
 
 ```dotenv
-# Telegram Bot API Token（必填，從 @BotFather 取得）
-TELEGRAM_BOT_TOKEN=你的_Bot_Token
+# Telegram Bot API token (required, get it from @BotFather)
+TELEGRAM_BOT_TOKEN=your_bot_token
 
-# 授權操作的 Telegram 數字 User ID（必填，多個以逗號分隔）
+# Telegram numeric User IDs authorized to operate the bot (required, comma-separated)
 ALLOWED_USER_IDS=123456789,987654321
 
-# 必填：safe 遵循 AGY 權限規則；full 自動核准所有 AGY 工具操作
+# Required: safe follows AGY's own permission rules; full auto-approves every AGY tool operation
 AGY_PERMISSION_MODE=safe
 ```
 
-### 可選進階設定項目：
+### Optional advanced settings:
 
 ```dotenv
-# 允許的 Chat/群組 ID（留空代表不限制）
+# Allowed Chat/group IDs (leave blank for no restriction)
 ALLOWED_CHAT_IDS=
 
-# 僅允許私訊操作（1=是, 0=否，預設 1）
+# Restrict to private chats only (1=yes, 0=no, default 1)
 TELEGRAM_PRIVATE_ONLY=1
 
-# agy 執行檔路徑（留空時自動搜尋 PATH 與 ~/.local/bin/agy）
+# Path to the agy executable (leave blank to auto-search PATH and ~/.local/bin/agy)
 AGY_BIN=
 
-# AGY 工作目錄（留空時使用使用者 home）
+# AGY working directory (leave blank to use the user's home directory)
 AGY_WORKDIR=
 
-# 允許切換的模型清單（逗號分隔）。留空時退回程式內建的預設清單，
-# 但那份清單不保證跟你的 agy 帳號實際可用的模型一致——
-# 建議先在 VM 上執行 `agy models` 取得真實清單再填入這裡。
+# Comma-separated list of models allowed for switching. If left blank, falls back to a
+# built-in default list -- but that list isn't guaranteed to match what your agy
+# account can actually use. Run `agy models` on the VM first to get the real list,
+# then paste it in here.
 AGY_ALLOWED_MODELS="gemini-3.7-flash-high,gemini-3.6-flash-high,claude-sonnet-4-6"
 
-# 串流進度顯示模式（full=完整, compact=單行, delete=完成後刪除，預設 compact）
+# Streaming progress display mode (full=expanded, compact=one line, delete=removed on completion, default compact)
 AGY_PROGRESS_MODE=compact
 
-# 新訊息進入時自動中斷前次任務並合併 Prompt（預設 1）
+# Automatically interrupt and merge the previous task's prompt when a new message arrives (default 1)
 AGY_AUTO_INTERRUPT=1
 
-# 允許透過 Telegram /restart 與 /update 自我更新（預設 0）
-# 開啟前請先讀本節下方「關於 /restart 與 /update」。
+# Allow self-update via Telegram /restart and /update (default 0)
+# Read "About /restart and /update" further down in this section before enabling this.
 ALLOW_BOT_UPDATE=0
 
-# 定時任務時區
+# Timezone used for scheduled tasks
 AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
-# 以下皆為可選，留空使用預設值：
-# AGY_RULE_PROMPT=          # 每次執行前附加給 AGY 的自訂行為規則（非安全機制，僅為提示詞）
-# AGY_BOT_NAME="HostSpark"  # Bot 自稱名稱
-# AGY_WAITING_MESSAGE=      # 執行中顯示的等待訊息
-# AGY_WORKSPACE_ROOT=       # 附件儲存與路徑隔離的根目錄，預設同 AGY_WORKDIR
-# AGY_CONVERSATION_DB_PATH= # 保留給未來功能使用，目前無指令會讀取
-# AGY_TIMEOUT_SECONDS=600         # 單次 AGY 執行逾時秒數（10~3600）
-# AGY_MAX_OUTPUT_BYTES=1000000    # stdout/stderr 各自保留上限
-# AGY_SCHEDULE_DB_PATH=           # 排程 SQLite 路徑
-# AGY_STATE_DB_PATH=              # Per-chat 狀態 SQLite 路徑
-# AGY_SCHEDULE_MIN_INTERVAL_MINUTES=15  # 排程最短間隔（分鐘）
-# AGY_SCHEDULE_MAX_TASKS=20             # 排程數量上限
+# Everything below is optional; leave blank to use the default:
+# AGY_RULE_PROMPT=          # Custom behavior rules prepended to every AGY call (a prompt, not a security control)
+# AGY_BOT_NAME="HostSpark"  # The name the bot refers to itself as
+# AGY_WAITING_MESSAGE=      # The "please wait" message shown while a task runs
+# AGY_WORKSPACE_ROOT=       # Root directory for attachment storage and path containment; defaults to AGY_WORKDIR
+# AGY_CONVERSATION_DB_PATH= # Reserved for a future feature; no command reads it currently
+# AGY_TIMEOUT_SECONDS=600         # Per-run AGY timeout in seconds (10-3600)
+# AGY_MAX_OUTPUT_BYTES=1000000    # Max bytes retained for each of stdout/stderr
+# AGY_SCHEDULE_DB_PATH=           # Path to the scheduler's SQLite database
+# AGY_STATE_DB_PATH=              # Path to the per-chat state SQLite database
+# AGY_SCHEDULE_MIN_INTERVAL_MINUTES=15  # Minimum interval between schedule runs (minutes)
+# AGY_SCHEDULE_MAX_TASKS=20             # Maximum number of stored schedules
 ```
 
 ---
 
-## 📖 Telegram 指令手冊
+## 📖 Telegram Command Reference
 
-### 1. 基礎與狀態
-| 指令 | 說明 |
+### 1. Basics & status
+| Command | Description |
 |---|---|
-| `/start` 或 `/help` | 顯示歡迎訊息、當前權限狀態與功能完整導覽 |
-| `/menu` | 開啟常駐快捷功能選單鍵盤 |
-| `/status` | 檢視 VM 即時負載、磁碟、記憶體、Docker 與任務佇列狀態 |
-| `/cancel` | 取消目前 Chat 中正在執行或佇列等待的任務 |
+| `/start` or `/help` | Show a welcome message, current permission status, and a full feature tour |
+| `/menu` | Open the persistent quick-action keyboard |
+| `/status` | View live VM load, disk, memory, Docker, and job queue status |
+| `/cancel` | Cancel this chat's active or queued task |
 
-### 2. 對話與工作階段
-| 指令 | 說明 |
+### 2. Conversation & sessions
+| Command | Description |
 |---|---|
-| `/new` 或 `/clear` | 重置對話工作階段，下一次提問將開啟全新 Session |
-| `/continue on\|off` | 切換是否自動延續對話（`--continue`） |
-| `/session` | 檢視目前 Chat 的所有設定（Model、Effort、Mode、Sandbox 等） |
-| `/learn [內容]` | 整理對話經驗與技能為可重複使用的 Skill |
-| `/compact` | 壓縮目前對話上下文，保留核心決策與狀態 |
+| `/new` or `/clear` | Reset the conversation session; the next message starts a brand-new session |
+| `/continue on\|off` | Toggle automatic conversation continuation (`--continue`) |
+| `/session` | View all of this chat's current settings (Model, Effort, Mode, Sandbox, etc.) |
+| `/learn [text]` | Turn conversation experience and techniques into a reusable skill |
+| `/compact` | Compact the current conversation context while preserving key decisions and state |
 
-### 3. 模型與執行偏好
-| 指令 | 說明 |
+### 3. Model & execution preferences
+| Command | Description |
 |---|---|
-| `/model [名稱]` 或 `/models` | 查看可用模型清單或切換當前模型 |
-| `/effort low\|medium\|high` | 設定推理深度（Reasoning effort） |
-| `/mode plan\|accept-edits` | 切換執行模式（accept-edits 需全域 Full 模式） |
-| `/sandbox on\|off` | 開啟或關閉終端機沙箱限制 |
-| `/verbose detailed\|compact\|silent` | 設定串流進度訊息詳細度 |
-| `/setdefault` | 經確認後將目前 Chat 設定寫回 `.env` 作為全域預設值 |
+| `/model [name]` or `/models` | View the available model list or switch the current model |
+| `/effort low\|medium\|high` | Set reasoning effort |
+| `/mode plan\|accept-edits` | Switch execution mode (`accept-edits` requires global Full mode) |
+| `/sandbox on\|off` | Toggle terminal sandbox restrictions |
+| `/verbose detailed\|compact\|silent` | Set how detailed streaming progress messages are |
+| `/setdefault` | After confirmation, write this chat's settings back to `.env` as the new global default |
 
-### 4. 額度、上下文與 CLI Passthrough
-| 指令 | 說明 |
+### 4. Quota, context & CLI passthrough
+| Command | Description |
 |---|---|
-| `/usage` / `/quota` / `/credits` | 查詢 AGY 剩餘配額、使用進度與重置時間 |
-| `/context` | 檢視上下文用量、分類 Token 明細與 Checkpoint |
-| `/agy [ARGS...]` | 直接執行原生 `agy` CLI 指令（危險指令自動觸發確認） |
-| `/agy_confirm [TOKEN]` | 二次確認並執行具潛在風險的 agy 指令 |
-| `/agents`, `/changelog`, `/plugins`, `/version`, `/cli_help` | 唯讀查詢 AGY 內建資訊 |
-| `/agent [名稱]`, `/project [ID]`, `/add_dir [路徑]` | 設定當前 Chat 的專屬 Agent、專案或目錄 |
-| `/output_format text\|json\|stream-json` | 設定本次 Chat 呼叫 AGY 時使用的輸出格式 |
-| `/json_schema <SCHEMA>\|clear` | 設定或清除 `--json-schema` |
-| `/log_file <PATH>\|clear` | 設定或清除 `--log-file` |
-| `/print_timeout <DURATION>\|clear` | 設定或清除 `--print-timeout`（例如 `5m`、`600s`） |
-| `/new_project on\|off` | 切換 `--new-project` |
-| `/disable_slash_commands on\|off` | 切換 `--disable-slash-commands` |
+| `/usage` / `/quota` / `/credits` | Check AGY's remaining quota, usage pace, and reset time |
+| `/context` | View context usage, categorized token breakdown, and checkpoint info |
+| `/agy [ARGS...]` | Run a native `agy` CLI command directly (dangerous commands trigger a confirmation) |
+| `/agy_confirm [TOKEN]` | Confirm and run a previously flagged, potentially risky agy command |
+| `/agents`, `/changelog`, `/plugins`, `/version`, `/cli_help` | Read-only lookups of AGY's built-in info |
+| `/agent [name]`, `/project [ID]`, `/add_dir [path]` | Set this chat's dedicated agent, project, or extra directory |
+| `/output_format text\|json\|stream-json` | Set the output format used when this chat calls AGY |
+| `/json_schema <SCHEMA>\|clear` | Set or clear `--json-schema` |
+| `/log_file <PATH>\|clear` | Set or clear `--log-file` |
+| `/print_timeout <DURATION>\|clear` | Set or clear `--print-timeout` (e.g. `5m`, `600s`) |
+| `/new_project on\|off` | Toggle `--new-project` |
+| `/disable_slash_commands on\|off` | Toggle `--disable-slash-commands` |
 
-### 5. 定時排程管理
-| 指令 | 說明 |
+### 5. Scheduled task management
+| Command | Description |
 |---|---|
-| `/schedule_help` | 查看定時任務 cron 語法、變數模板與規則說明 |
-| `/schedule_add <cron> <任務>` | 建立定時任務（經 AGY 整理提示詞並彈出預覽確認） |
-| `/schedule_list` | 列出所有定時任務清單與下次執行時間 |
-| `/schedule_show <ID>` | 查看特定排程之詳細 Prompt 與執行統計 |
-| `/schedule_pause <ID>` | 暫停指定排程 |
-| `/schedule_resume <ID>` | 恢復指定排程 |
-| `/schedule_delete <ID>` | 刪除指定排程 |
+| `/schedule_help` | View cron syntax, variable templates, and rules for scheduled tasks |
+| `/schedule_add <cron> <task>` | Create a scheduled task (AGY rewrites the prompt, then a preview confirmation pops up) |
+| `/schedule_list` | List all scheduled tasks and their next run time |
+| `/schedule_show <ID>` | View a schedule's full prompt template and run statistics |
+| `/schedule_pause <ID>` | Pause a schedule |
+| `/schedule_resume <ID>` | Resume a schedule |
+| `/schedule_delete <ID>` | Delete a schedule |
 
 > [!TIP]
-> 如果你用一般文字提到「排程」「提醒我」或「每 N 分鐘/小時」之類的未來時間需求，Bot 會直接攔截並帶你走 `/schedule_add` 的建立流程（AGY 整理 prompt ＋ Telegram 按鈕二次確認），不會把訊息當一般對話送給 AGY——因為 AGY 若把這類請求當一般對話處理，可能會試圖在單次呼叫中真的「等到那個時間」才回覆，白白佔用全域任務佇列。若你只是剛好聊天內容提到時間、不是真的要排程，在彈出的確認按鈕點「❌ 取消」即可。
+> If you mention "schedule this", "remind me", or "every N minutes/hours" in a plain-text message, the bot intercepts it and walks you straight into the `/schedule_add` creation flow (AGY rewrites the prompt, then a Telegram button confirmation) instead of sending it to AGY as a normal turn — because if AGY treated that kind of request as an ordinary conversation, it might try to literally wait until that time in a single call, tying up the global job queue the whole time. If your message just happened to mention a time and you weren't actually asking for a schedule, just tap "❌ Cancel" on the confirmation prompt.
 
-### 6. 運維：遠端重啟與更新
-| 指令 | 說明 |
+### 6. Ops: remote restart & update
+| Command | Description |
 |---|---|
-| `/restart` | 重新啟動 Bot 服務 |
-| `/update` | 於 repo 目錄執行 `git pull origin main`，成功後自動重啟服務 |
+| `/restart` | Restart the bot service |
+| `/update` | Run `git pull origin main` in the repo directory, then restart automatically on success |
 
-兩者預設**停用**，需在 `.env` 設定 `ALLOW_BOT_UPDATE=1` 才能使用。
+Both are **disabled** by default; set `ALLOW_BOT_UPDATE=1` in `.env` to enable them.
 
 > [!NOTE]
-> `install.sh` 把服務裝成一般使用者身分執行的系統層級 systemd unit，該使用者通常**沒有權限**直接呼叫 `systemctl restart` 觸發自己的服務（會被 polkit 擋下並回報 `Interactive authentication required`）。因此 `/restart`／`/update` 內部會先嘗試 `systemctl restart`，若失敗則改用**非零結束碼**讓程序結束——systemd unit 設有 `Restart=on-failure`，會在數秒內自動重新拉起服務。這代表你不需要額外授予 sudo 或設定 polkit 規則，`/restart`／`/update` 就能正常運作；重啟期間服務會短暫離線約 5 秒。
+> `install.sh` installs the service as a system-level systemd unit running as a regular user, and that user typically has **no permission** to call `systemctl restart` on its own service directly (it gets rejected by polkit with `Interactive authentication required`). So `/restart`/`/update` first try `systemctl restart`; if that fails, they exit with a **non-zero status code** instead — the systemd unit has `Restart=on-failure` configured, so it automatically brings the service back up within seconds. This means you don't need to grant extra sudo access or configure polkit rules for `/restart`/`/update` to work correctly; the service will just be briefly offline for about 5 seconds during the restart.
 
-### 手機端指令自動補齊（選用）
+### Telegram command auto-complete (optional)
 
-向 `@BotFather` 傳送 `/setcommands`，選擇你的 Bot，貼上以下清單，之後在 Telegram 輸入 `/` 就會跳出中文說明的自動補齊選單（這是精選常用子集，不含全部指令）：
+Send `/setcommands` to `@BotFather`, pick your bot, and paste the list below — typing `/` in Telegram will then pop up an auto-complete menu with descriptions (this is a curated subset of commonly used commands, not the full list):
 
 ```text
-menu - 開啟快捷功能操作鍵盤
-status - 檢視主機資源狀態與任務佇列
-new - 開啟全新對話 Session
-session - 檢視目前對話各項設定明細
-model - 查看或切換當前 AI 模型
-effort - 設定推理深度 (low/medium/high)
-mode - 設定執行模式 (plan/accept-edits)
-sandbox - 開啟或關閉沙箱隔離 (on/off)
-verbose - 設定串流進度詳細度 (detailed/compact/silent)
-setdefault - 將目前設定寫回全域預設值
-usage - 查詢 AGY 額度與配額指標
-quota - 查詢剩餘配額與重置時間
-context - 檢視上下文與 Token 用量明細
-cancel - 取消當前執行或佇列中的任務
-agy - 執行原生 AGY CLI 參數
-schedule_list - 列出所有定時排程任務
-schedule_add - 新增定時排程任務
-schedule_help - 查看定時排程 cron 語法與說明
-help - 顯示完整功能操作說明
+menu - Open the quick-action keyboard
+status - View host resource status and the job queue
+new - Start a brand-new conversation session
+model - View or switch the current AI model
+effort - Set reasoning effort (low/medium/high)
+mode - Set execution mode (plan/accept-edits)
+sandbox - Toggle sandbox isolation (on/off)
+verbose - Set streaming progress verbosity (detailed/compact/silent)
+setdefault - Write the current settings back as the global default
+usage - Check AGY quota and usage metrics
+quota - Check remaining quota and reset time
+context - View context and token usage details
+cancel - Cancel the active or queued task
+agy - Run native AGY CLI arguments
+schedule_list - List all scheduled tasks
+schedule_add - Add a new scheduled task
+schedule_help - View scheduled-task cron syntax and help
+help - Show the full feature guide
 ```
 
 ---
 
-## 🚀 快速安裝與升級
+## 🚀 Quick Install & Upgrade
 
 ```bash
 git clone https://github.com/gemini960114/HostSpark.git
@@ -219,37 +221,37 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### 驗證設定與測試：
+### Verify the configuration and run tests:
 
 ```bash
 venv/bin/python bot.py --check-config
 venv/bin/python -m unittest discover -s tests -v
 ```
 
-### 從舊版升級
+### Upgrading from an older version
 
-舊版只支援單一 `ALLOWED_USER_ID`、沒有 per-chat 設定、沒有本文件描述的多數指令。升級前：
+Older versions only supported a single `ALLOWED_USER_ID`, had no per-chat settings, and lacked most of the commands described in this document. Before upgrading:
 
-1. `sudo systemctl stop agy-telegram.service`，備份現有 `.env`（`cp -p .env .env.bak`）。
-2. `git pull` 後對照 `.env.example` 補齊新變數；舊的 `ALLOWED_USER_ID` 會自動相容，不需要立刻改成 `ALLOWED_USER_IDS`，但建議改過去以便之後新增多使用者。
-3. `./install.sh` 重新同步依賴與 systemd unit（會用新的 `requirements.lock`，含新增的 `pexpect`、`httpx` 等套件）。
-4. 啟動後跑一次 `/start` `/status` 確認基本功能正常，再測試你會用到的新指令。
+1. `sudo systemctl stop agy-telegram.service`, then back up your existing `.env` (`cp -p .env .env.bak`).
+2. `git pull`, then fill in any new variables by comparing against `.env.example`. The old `ALLOWED_USER_ID` is auto-compatible, so you don't have to switch to `ALLOWED_USER_IDS` immediately — but it's recommended so you can add more users later.
+3. Re-run `./install.sh` to resync dependencies and the systemd unit (it uses the new `requirements.lock`, which adds `pexpect`, `httpx`, and others).
+4. After startup, run `/start` and `/status` to confirm the basics work, then try out whichever new commands you plan to use.
 
-### Bot Token 若疑似外洩
+### If your Bot Token may have leaked
 
-立即在 `@BotFather` 用 `/token` 重新產生 Token（舊 Token 即刻失效），更新 `.env` 後 `sudo systemctl restart agy-telegram.service`。不要把 Token 貼到 issue、聊天記錄或終端機截圖中；一旦外洩即視為已外洩，即使事後刪除訊息也應輪替。
+Immediately regenerate the token via `/token` with `@BotFather` (the old token is invalidated instantly), update `.env`, then `sudo systemctl restart agy-telegram.service`. Never paste the token into an issue, chat log, or terminal screenshot — treat it as compromised the moment it's exposed, even if you delete the message afterward, and rotate it.
 
 ---
 
-## 🔒 安全性與隱私說明
+## 🔒 Security & Privacy Notes
 
-- **無 Shell 調用**：所有子程序一律透過 `create_subprocess_exec` 呼叫，絕不經過 shell 拼接。
-- **路徑防穿透（Path Traversal Defense）**：附件上傳與 `/add_dir` 一律經過 `safe_join` 驗證，限制於工作空間內。
-- **SSRF 防護**：AGY 輸出媒體解析具備 DNS 反解與私有/保留 IP 驗證，防止內網探測與 DNS Rebinding。
-- **憑證過濾**：日誌與 Telegram 輸出自動過濾 Bot Token、AWS Key、SSH 私鑰與 JWT。
+- **No shell invocation**: every subprocess call goes through `create_subprocess_exec` directly — never shell string concatenation.
+- **Path traversal defense**: attachment uploads and `/add_dir` are always validated with `safe_join` and confined to the workspace.
+- **SSRF defense**: AGY output-media resolution performs DNS resolution and private/reserved IP validation to block internal network probing and DNS rebinding.
+- **Credential scrubbing**: logs and Telegram output automatically filter out Bot Tokens, AWS keys, SSH private keys, and JWTs.
 
-更多細節請參閱 [SECURITY.md](SECURITY.md)。
+See [SECURITY.md](SECURITY.md) for more details.
 
-## 📄 授權
+## 📄 License
 
-本專案採用 [MIT License](LICENSE)。
+This project is licensed under the [MIT License](LICENSE).
