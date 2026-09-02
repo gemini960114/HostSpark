@@ -5,6 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
+![HostSpark responding to /status in Telegram](assets/telegram-status.png)
+
 **HostSpark** is a 24/7 autonomous AI agent system built for Linux/Ubuntu hosts. It bridges Telegram and the Antigravity CLI (`agy`) to turn a host into a personal engineer and ops assistant you can control from your phone. Officially targeted at Taiwan's national research network (TWNIC), Chunghwa Telecom's cloud, other major cloud VPS providers, and any server running a regular Ubuntu user with systemd.
 
 This project is not another AI agent framework, and it does not implement its own model, reasoning engine, or computer-control tools. Telegram provides the mobile messaging interface; this bot is only responsible for authorization, request forwarding, live streaming output, session isolation, scheduled triggers, timeouts, error handling, and message formatting. The actual AI reasoning, tool calls, file operations, and system control are all provided by AGY.

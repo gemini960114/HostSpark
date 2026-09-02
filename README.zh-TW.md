@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
+![HostSpark 在 Telegram 回應 /status 的畫面](assets/telegram-status.png)
+
 **HostSpark** 是一個專為 Linux / Ubuntu 主機設計的 24/7 自主 AI 代理系統，透過 Telegram 與 Antigravity CLI (`agy`) 將主機轉化為隨身可控的專屬工程師與維運助手。正式支援目標是國網、晶創雲、各大雲端 VPS 與採用一般 Ubuntu 使用者與 systemd 的伺服器。
 
 本專案不是另一套 AI Agent 框架，也不自行實作模型、推理引擎或電腦控制工具。Telegram 負責提供手機通訊介面，本 Bot 只負責授權驗證、請求轉送、串流即時輸出、工作階段隔離、定時觸發、timeout、錯誤處理及訊息格式；真正的 AI 推理、工具調用、檔案操作與系統控制能力均由 AGY 提供。
