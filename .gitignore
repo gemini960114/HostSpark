@@ -13,6 +13,13 @@ venv/
 .venv/
 env/
 ENV/
+.security-tools-venv/
+
+# Security scan reports (may contain secret snippets found by gitleaks -- never commit)
+security-reports/
+# A dated, file:line-specific scan writeup -- useful locally, but stays private:
+# it doubles as a map of "what a scanner once flagged here" if the code regresses later.
+SECURITY-SCAN-REPORT.md
 
 # Python Cache & Bytecode
 __pycache__/

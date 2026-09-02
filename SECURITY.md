@@ -60,6 +60,25 @@ The following are outside the project's security guarantees:
 - Both commands attempt `systemctl restart agy-telegram.service` first. Since the service normally runs as an unprivileged user, this call is commonly rejected by polkit (`Interactive authentication required`). The fallback path exits the process with a non-zero status code specifically so systemd's `Restart=on-failure` policy (configured by `install.sh`) brings it back up — no additional sudo/polkit grant is required or recommended for this feature to function.
 - Only enable `ALLOW_BOT_UPDATE` if you trust every allowlisted user with the ability to deploy new code to this VM.
 
+## Running the Security Scanner
+
+`security-scan.sh` runs a battery of open-source scanners against this repo and writes their reports to `security-reports/<timestamp>/`:
+
+- **pip-audit** — known-CVE scan of `requirements.lock`.
+- **bandit** — static analysis for common Python security anti-patterns.
+- **semgrep** — flexible static analysis using the public `p/python` and `p/owasp-top-ten` rulesets.
+- **gitleaks** — scans the full git history for committed secrets and tokens.
+
+```bash
+./security-scan.sh
+```
+
+The script is self-contained: it bootstraps its own dependencies on first run (a dedicated `.security-tools-venv/`, kept separate from the app's own `venv/`, plus `gitleaks` via `apt` if missing) and does not require anything to be installed beforehand.
+
+Not every finding these tools report is a real vulnerability — bandit and semgrep in particular flag patterns (e.g. any f-string used to build SQL) without understanding surrounding validation logic, so always read a flagged line in context before acting on it. A finding that's confirmed to be a false positive is still worth a one-line comment at the flagged code (why it's safe) so the next person — or the next scan — doesn't have to re-derive the same reasoning.
+
+**Do not commit `security-reports/`.** It is already excluded via `.gitignore`: a gitleaks report in particular can contain the actual secret snippets it found, and even a stale bandit/semgrep report tied to a specific commit can read as a map of "here's what to check first" if the underlying code regresses later. Treat scan output as a local, disposable artifact — re-run the scanner instead of trying to keep an old report current.
+
 ## Reporting a vulnerability
 
 Do not open a public issue containing exploit details or secrets. Contact the repository owner privately through the security reporting channel configured on the hosting platform. Include affected commit, impact and minimal reproduction steps without real credentials.
