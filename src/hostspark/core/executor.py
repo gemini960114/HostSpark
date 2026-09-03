@@ -161,10 +161,21 @@ async def run_agy(
             workdir.mkdir(parents=True, exist_ok=True)
             add_primary_workdir = True
 
+    # Deliberately NOT keyed on chat_state.new_project here: that's the
+    # sticky, user-facing /new_project on|off toggle (unrelated to /new's
+    # directory switch) and must not force every future turn to drop
+    # --continue/--conversation for as long as it stays on. --new-project
+    # itself still gets appended below whenever chat_state.new_project is
+    # set, independently of session freshness.
+    is_fresh_session = bool(
+        (chat_id is not None and chat_id in state.PENDING_CLEAR)
+        or (chat_id is not None and chat_id in state.PENDING_PROJECT_INIT)
+    )
+
     if chat_state:
-        if chat_state.conversation_id:
+        if chat_state.conversation_id and not is_fresh_session:
             args.extend(["--conversation", chat_state.conversation_id])
-        elif continue_conversation and chat_state.continue_enabled:
+        elif continue_conversation and chat_state.continue_enabled and not is_fresh_session:
             args.append("--continue")
 
         args.extend(resolve_model_and_effort_args(chat_state.model, chat_state.effort))
@@ -196,12 +207,12 @@ async def run_agy(
         else:
             args.extend(["--print-timeout", f"{config.timeout_seconds}s"])
 
-        if chat_state.new_project or chat_id in state.PENDING_PROJECT_INIT:
+        if chat_state.new_project or (chat_id is not None and chat_id in state.PENDING_PROJECT_INIT):
             args.append("--new-project")
         if chat_state.disable_slash_commands:
             args.append("--disable-slash-commands")
     else:
-        if continue_conversation:
+        if continue_conversation and not is_fresh_session:
             args.append("--continue")
         args.extend(["--print-timeout", f"{config.timeout_seconds}s"])
 
@@ -209,6 +220,10 @@ async def run_agy(
         args.append("--dangerously-skip-permissions")
     if add_primary_workdir and workdir != config.agy_workdir:
         args.extend(["--add-dir", str(config.agy_workdir)])
+    if workdir:
+        workdir_str = str(workdir)
+        if workdir_str not in args:
+            args.extend(["--add-dir", workdir_str])
 
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
     run_cwd = workdir or config.agy_workdir
@@ -239,4 +254,6 @@ async def run_agy(
         # had its one shot; agy registers the project during its own startup
         # regardless of how the run itself turns out, so don't keep re-adding
         # it on every future message in this chat.
-        state.PENDING_PROJECT_INIT.discard(chat_id)
+        if chat_id is not None:
+            state.PENDING_PROJECT_INIT.discard(chat_id)
+            state.PENDING_CLEAR.discard(chat_id)

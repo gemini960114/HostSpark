@@ -33,6 +33,9 @@ agy_lock = asyncio.Lock()
 # Deliberately separate from chat_state.new_project (the sticky, user-facing
 # /new_project on|off toggle) so switching directories never overrides that.
 PENDING_PROJECT_INIT: set[int] = set()
+# chat_ids that requested a fresh conversation (via /clear or /new).
+# Suppresses --continue on the very next run_agy() call.
+PENDING_CLEAR: set[int] = set()
 
 _PENDING_CONTEXT_TTL_SECONDS = 600
 _PENDING_CONTEXT: dict[int, tuple[float, str]] = {}

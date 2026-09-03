@@ -92,6 +92,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         state.SCHEDULE_STORE = self.previous_store
         state.CHAT_STATE_STORE = self.previous_chat_store
         state.PENDING_PROJECT_INIT.clear()
+        state.PENDING_CLEAR.clear()
         self.tempdir.cleanup()
 
     async def test_prompt_builder_never_receives_full_permission_flag(self) -> None:
@@ -135,8 +136,55 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         chat_id = 560
         (state.CONFIG.workspace_root / "another-project").mkdir(parents=True, exist_ok=True)
         state.PENDING_PROJECT_INIT.discard(chat_id)
+        state.PENDING_CLEAR.discard(chat_id)
         switch_project_dir(chat_id, "another-project")
         self.assertIn(chat_id, state.PENDING_PROJECT_INIT)
+        self.assertIn(chat_id, state.PENDING_CLEAR)
+
+    async def test_switching_project_dir_suppresses_continue_on_first_turn(self) -> None:
+        chat_id = 561
+        target_dir = state.CONFIG.workspace_root / "auto-project"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        from hostspark.core.workspace import switch_project_dir
+        switch_project_dir(chat_id, "auto-project")
+
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi", chat_id=chat_id, continue_conversation=True)
+        args_1 = mocked.await_args.args[0]
+        # First turn must NOT have --continue even if continue_conversation=True
+        self.assertNotIn("--continue", args_1)
+        self.assertIn("--new-project", args_1)
+        self.assertIn(str(target_dir), args_1)
+        self.assertNotIn(chat_id, state.PENDING_PROJECT_INIT)
+        self.assertNotIn(chat_id, state.PENDING_CLEAR)
+
+        # Second turn should resume and continue the session
+        mocked.reset_mock()
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi again", chat_id=chat_id, continue_conversation=True)
+        args_2 = mocked.await_args.args[0]
+        self.assertIn("--continue", args_2)
+        self.assertNotIn("--new-project", args_2)
+        self.assertIn(str(target_dir), args_2)
+
+    async def test_sticky_new_project_toggle_does_not_suppress_continue(self) -> None:
+        # /new_project on|off (new_project_command) is a separate, sticky,
+        # user-facing toggle -- unrelated to /new's directory switch. It must
+        # keep adding --new-project on every turn, but must NOT also force
+        # is_fresh_session and drop --continue/--conversation forever.
+        chat_id = 562
+        state.CHAT_STATE_STORE.update(
+            chat_id, new_project=True, conversation_id="existing-conv-id"
+        )
+        for _ in range(2):
+            mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+            with patch("hostspark.core.executor.run_process", mocked):
+                await run_agy("hi", chat_id=chat_id, continue_conversation=True)
+            args = mocked.await_args.args[0]
+            self.assertIn("--new-project", args)
+            self.assertIn("--conversation", args)
+            self.assertIn("existing-conv-id", args)
 
     async def test_executor_uses_selected_workspace_dir_without_extra_add_dir(self) -> None:
         chat_id = 557
@@ -255,6 +303,15 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         # /clear must NOT touch workspace_dir or add_dirs — only /new does.
         self.assertEqual(settings.workspace_dir, "my-project")
         self.assertEqual(settings.add_dirs, ("/keep/me",))
+        self.assertIn(chat_id, state.PENDING_CLEAR)
+
+        # Confirm next run_agy with continue_conversation=True suppresses --continue
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi", chat_id=chat_id, continue_conversation=True)
+        args_1 = mocked.await_args.args[0]
+        self.assertNotIn("--continue", args_1)
+        self.assertNotIn(chat_id, state.PENDING_CLEAR)
 
     async def test_reselecting_same_workspace_dir_keeps_add_dirs(self) -> None:
         chat_id = 606

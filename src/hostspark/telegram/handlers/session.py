@@ -55,6 +55,7 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     chat_id = _get_chat_id(update)
     state.get_chat_state_store().clear_conversation(chat_id)
+    state.PENDING_CLEAR.add(chat_id)
     await update.message.reply_text("✅ 已重置對話工作階段。下一個提問將開啟全新對話。")
 
 

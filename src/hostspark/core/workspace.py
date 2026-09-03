@@ -36,3 +36,4 @@ def switch_project_dir(chat_id: int, name: str) -> None:
         fields["add_dirs"] = []
     store.update(chat_id, **fields)
     state.PENDING_PROJECT_INIT.add(chat_id)
+    state.PENDING_CLEAR.add(chat_id)
