@@ -20,6 +20,11 @@ def main() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         level=logging.INFO,
     )
+    # httpx logs the full request URL at INFO level, and python-telegram-bot
+    # embeds the bot token directly in the URL path (api.telegram.org/bot<TOKEN>/...)
+    # -- letting that through would print the live token in plaintext to the
+    # systemd journal on every API call.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     load_dotenv(state.ENV_PATH)
     try:
         state.CONFIG = load_config()
