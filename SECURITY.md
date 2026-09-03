@@ -75,6 +75,8 @@ The following are outside the project's security guarantees:
 
 The script is self-contained: it bootstraps its own dependencies on first run (a dedicated `.security-tools-venv/`, kept separate from the app's own `venv/`, plus `gitleaks` via `apt` if missing) and does not require anything to be installed beforehand.
 
+**It also installs a git pre-commit hook** (`.git/hooks/pre-commit`) that runs `gitleaks protect --staged` before every commit, blocking it if the staged changes contain a secret. This catches leaks before they land instead of relying solely on a later manual scan of git history. The hook is local to your checkout (`.git/hooks/` isn't version-controlled), so it's reinstalled automatically the next time `security-scan.sh` runs on a fresh clone. To bypass it for a confirmed false positive, use `git commit --no-verify`.
+
 Not every finding these tools report is a real vulnerability — bandit and semgrep in particular flag patterns (e.g. any f-string used to build SQL) without understanding surrounding validation logic, so always read a flagged line in context before acting on it. A finding that's confirmed to be a false positive is still worth a one-line comment at the flagged code (why it's safe) so the next person — or the next scan — doesn't have to re-derive the same reasoning.
 
 **Do not commit `security-reports/`.** It is already excluded via `.gitignore`: a gitleaks report in particular can contain the actual secret snippets it found, and even a stale bandit/semgrep report tied to a specific commit can read as a map of "here's what to check first" if the underlying code regresses later. Treat scan output as a local, disposable artifact — re-run the scanner instead of trying to keep an old report current.

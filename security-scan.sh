@@ -9,6 +9,10 @@
 #   - semgrep   : flexible static analysis (OWASP Top Ten + Python rulesets)
 #   - gitleaks  : scans the full git history for committed secrets/tokens
 #
+# Also installs a git pre-commit hook (via gitleaks) that blocks new commits
+# from introducing secrets, so leaks are caught before they land instead of
+# only being found by a later manual scan.
+#
 # (safety is deliberately not included: its CLI now requires an interactive
 # account login/registration, which doesn't fit a non-interactive script.)
 #
@@ -65,6 +69,22 @@ if ! command -v gitleaks >/dev/null 2>&1; then
         echo "Could not install gitleaks automatically -- skipping that scan."
         SKIPPED+=("gitleaks")
     fi
+fi
+
+echo
+echo "Setting up gitleaks pre-commit hook..."
+if command -v gitleaks >/dev/null 2>&1 && [[ -d "$SCRIPT_DIR/.git" ]]; then
+    HOOK_PATH="$SCRIPT_DIR/.git/hooks/pre-commit"
+    cat >"$HOOK_PATH" <<'HOOK_EOF'
+#!/usr/bin/env bash
+# Installed by security-scan.sh -- blocks commits that would introduce secrets.
+# To bypass a known false positive: git commit --no-verify
+exec gitleaks protect --staged -v
+HOOK_EOF
+    chmod +x "$HOOK_PATH"
+    echo "Installed at $HOOK_PATH (blocks 'git commit' when staged changes contain secrets)."
+else
+    echo "Skipped (gitleaks unavailable or this isn't a git checkout)."
 fi
 
 # Runs one scanner, streams its output live, saves it to a report file, and
