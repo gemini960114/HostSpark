@@ -130,6 +130,7 @@ def build_application(config: BotConfig | None = None) -> Any:
     app = (
         ApplicationBuilder()
         .token(cfg.bot_token)
+        .concurrent_updates(True)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
         .build()

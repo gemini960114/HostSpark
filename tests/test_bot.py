@@ -34,6 +34,22 @@ UTC = timezone.utc
 VALID_TOKEN = f"{987654321}:{'A' * 25}"
 
 
+async def _wait_until(predicate, timeout: float = 2.0) -> None:
+    """Poll `predicate()` until it's truthy or `timeout` seconds pass.
+
+    Needed because handle_message() now enqueues and returns immediately
+    (see hostspark.telegram.dispatcher._enqueue_and_handle_prompt) instead of
+    blocking until the background job finishes, so tests that assert on the
+    job's eventual side effects have to wait for it explicitly.
+    """
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        if loop.time() > deadline:
+            raise AssertionError(f"timed out after {timeout}s waiting for condition")
+        await asyncio.sleep(0.02)
+
+
 class FakeTelegramBot:
     def __init__(self) -> None:
         self.messages: list[dict] = []
@@ -469,6 +485,11 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         result = ProcessResult(0, "你好！我是國網AI助理", "")
         with patch("hostspark.core.executor.run_agy", AsyncMock(return_value=result)):
             await handle_message(update, context)
+            # handle_message no longer blocks until the job finishes (it just
+            # enqueues and returns so python-telegram-bot can dispatch other
+            # updates, e.g. /cancel, concurrently); wait for the background
+            # worker to actually finish this job before asserting on it.
+            await _wait_until(lambda: status_msg.edit_text.await_count > 0)
 
         msg.reply_text.assert_awaited()
         first_call = msg.reply_text.await_args_list[0]
@@ -479,6 +500,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         status_msg.delete.reset_mock()
         with patch("hostspark.core.executor.run_agy", AsyncMock(return_value=result)):
             await handle_message(update, context)
+            await _wait_until(lambda: status_msg.delete.await_count > 0)
         status_msg.delete.assert_awaited_once()
 
 

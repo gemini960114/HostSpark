@@ -128,7 +128,10 @@ async def _enqueue_and_handle_prompt(
     if state.JOB_QUEUE._worker_task is None or state.JOB_QUEUE._worker_task.done():
         state.JOB_QUEUE.start(lambda j: _execute_chat_job(app, j, status_msg=j.status_msg))
 
-    await job.done_event.wait()
+    # Intentionally not awaiting job.done_event here: _execute_chat_job (run by the
+    # queue's own worker task) sends the final reply itself via status_msg, and this
+    # handler returning promptly is what lets python-telegram-bot dispatch the next
+    # update (e.g. /cancel) without waiting for this job to finish.
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
