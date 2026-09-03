@@ -36,6 +36,7 @@ if command -v uv >/dev/null 2>&1; then
     fi
     echo "Syncing Python dependencies..."
     uv pip install --python venv/bin/python -r requirements.lock
+    uv pip install --python venv/bin/python -e .
 else
     if ! command -v python3 >/dev/null 2>&1; then
         echo "Installing Python3 and venv..."
@@ -53,6 +54,7 @@ else
     echo "Syncing Python dependencies..."
     venv/bin/python -m pip install --upgrade pip
     venv/bin/python -m pip install -r requirements.lock
+    venv/bin/python -m pip install -e .
 fi
 
 if [[ ! -f ".env" ]]; then

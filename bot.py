@@ -2,7 +2,14 @@
 from __future__ import annotations
 
 import logging
+import sys
+from pathlib import Path
 from typing import Any
+
+# Ensure src/ is in sys.path for direct execution (e.g. systemd or python bot.py)
+_SRC_DIR = Path(__file__).resolve().parent / "src"
+if _SRC_DIR.is_dir() and str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
 from hostspark.config import BotConfig, ConfigError, load_config
 from hostspark.core.cli_args import (
