@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hostspark.config import BotConfig
-from chat_state import ChatStateStore
-from instance_lock import InstanceLock
-from job_queue import JobQueue
-from pending_actions import PendingActionStore
-from schedule_store import ScheduleStore
+from hostspark.runtime.instance_lock import InstanceLock
+from hostspark.runtime.job_queue import JobQueue
+from hostspark.runtime.pending_actions import PendingActionStore
+from hostspark.storage.chat_state import ChatStateStore
+from hostspark.storage.schedule_store import ScheduleStore
+
 
 logger = logging.getLogger(__name__)
 

@@ -165,127 +165,22 @@ def get_reply_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
 
 
-async def run_agy(
-    user_text: str,
-    *,
-    chat_id: int | None = None,
-    continue_conversation: bool = True,
-    workdir: Path | None = None,
-    add_primary_workdir: bool = False,
-    allow_full_permissions: bool = True,
-    on_chunk: Any = None,
-    on_event: Any = None,
-) -> ProcessResult:
-    config = get_config()
-    if chat_id is not None:
-        injected_report = pop_context_injection(chat_id)
-        if injected_report:
-            user_text = (
-                "（以下是系統剛才查詢指令的結果，供你回答使用者接下來這句話時參考，"
-                "使用者看得到這份報告，不用整段複述）：\n"
-                f"{injected_report}\n\n"
-                f"使用者的訊息：\n{user_text}"
-            )
-    prompt = compose_agy_prompt(user_text, config.rule_prompt)
-    args = [str(config.agy_bin), "-p", prompt]
+from hostspark.core.executor import run_agy as _core_run_agy
+import hostspark.core.executor as _executor_mod
 
-    chat_state: ChatSettings | None = None
-    if chat_id is not None:
-        chat_state = get_chat_state_store().get_or_create(chat_id)
 
-    if chat_id is not None and workdir is None:
-        # `--continue` resumes "the most recently active conversation in this
-        # working directory" -- it is scoped by cwd, NOT by Telegram chat/user
-        # (confirmed empirically: two unrelated `--continue` calls from the same
-        # cwd share history; from different cwds they don't). Every normal
-        # per-chat turn used to share `config.agy_workdir` as cwd, which meant a
-        # second authorized chat's plain `--continue` message could silently
-        # resume and see context from a DIFFERENT chat's conversation. Giving
-        # each chat_id its own dedicated cwd makes `--continue` naturally scope
-        # to that chat alone, without changing anything else about how
-        # continuation/--conversation binding works.
-        workdir = config.state_db_path.parent / "workspaces" / f"chat-{chat_id}"
-        workdir.mkdir(parents=True, exist_ok=True)
-        add_primary_workdir = True
+async def run_agy(*args, **kwargs) -> ProcessResult:
+    current_run_proc = globals().get("run_process")
+    if current_run_proc is not None and current_run_proc is not _executor_mod.run_process:
+        orig = _executor_mod.run_process
+        try:
+            _executor_mod.run_process = current_run_proc
+            return await _core_run_agy(*args, **kwargs)
+        finally:
+            _executor_mod.run_process = orig
+    return await _core_run_agy(*args, **kwargs)
 
-    if chat_state:
-        if chat_state.conversation_id:
-            args.extend(["--conversation", chat_state.conversation_id])
-        elif continue_conversation and chat_state.continue_enabled:
-            args.append("--continue")
 
-        if chat_state.model:
-            args.extend(["--model", chat_state.model])
-        # Models whose own name already bakes in an effort tier (e.g. the
-        # "-high"/"-medium"/"-low" suffixed Gemini/GPT-OSS models) reject any
-        # --effort flag that doesn't match that suffix. Since our default
-        # per-chat effort is "high", picking e.g. gemini-3.7-flash-medium would
-        # otherwise always fail with "--model X conflicts with --effort=high".
-        if chat_state.effort and not model_has_baked_in_effort(chat_state.model):
-            args.extend(["--effort", chat_state.effort])
-
-        if config.permission_mode == "full" and chat_state.mode == "accept-edits":
-            args.extend(["--mode", "accept-edits"])
-        else:
-            args.extend(["--mode", "plan"])
-
-        if chat_state.sandbox:
-            args.append("--sandbox")
-
-        if chat_state.agent:
-            args.extend(["--agent", chat_state.agent])
-        if chat_state.project:
-            args.extend(["--project", chat_state.project])
-
-        for extra_dir in chat_state.add_dirs:
-            args.extend(["--add-dir", extra_dir])
-
-        if chat_state.output_format and chat_state.output_format != "text":
-            args.extend(["--output-format", chat_state.output_format])
-        if chat_state.json_schema:
-            args.extend(["--json-schema", chat_state.json_schema])
-        if chat_state.log_file:
-            args.extend(["--log-file", chat_state.log_file])
-        if chat_state.print_timeout:
-            args.extend(["--print-timeout", chat_state.print_timeout])
-        else:
-            args.extend(["--print-timeout", f"{config.timeout_seconds}s"])
-
-        if chat_state.new_project:
-            args.append("--new-project")
-        if chat_state.disable_slash_commands:
-            args.append("--disable-slash-commands")
-    else:
-        if continue_conversation:
-            args.append("--continue")
-        args.extend(["--print-timeout", f"{config.timeout_seconds}s"])
-
-    if config.permission_mode == "full" and allow_full_permissions:
-        args.append("--dangerously-skip-permissions")
-    if add_primary_workdir and workdir != config.agy_workdir:
-        args.extend(["--add-dir", str(config.agy_workdir)])
-
-    env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    run_cwd = workdir or config.agy_workdir
-
-    if on_chunk or on_event:
-        return await run_agy_streaming(
-            args,
-            cwd=run_cwd,
-            env=env,
-            timeout_seconds=config.timeout_seconds + 10,
-            max_output_bytes=config.max_output_bytes,
-            on_chunk=on_chunk,
-            on_event=on_event,
-        )
-
-    return await run_process(
-        args,
-        cwd=run_cwd,
-        env=env,
-        timeout_seconds=config.timeout_seconds + 10,
-        max_output_bytes=config.max_output_bytes,
-    )
 
 
 def result_message(result: ProcessResult) -> str:
