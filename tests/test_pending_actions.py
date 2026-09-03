@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from pending_actions import PendingActionStore
+from hostspark.runtime.pending_actions import PendingActionStore
 
 
 UTC = timezone.utc

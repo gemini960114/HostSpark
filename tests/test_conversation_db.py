@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from conversation_db import list_conversations
+from hostspark.storage.conversation_db import list_conversations
 
 
 class ConversationDBTests(unittest.TestCase):

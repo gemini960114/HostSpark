@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from schedule_store import (
+from hostspark.storage.schedule_store import (
     NO_REPORT_SENTINEL,
     ScheduleError,
     ScheduleStore,

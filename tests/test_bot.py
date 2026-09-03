@@ -11,8 +11,9 @@ from unittest.mock import AsyncMock, patch
 
 import bot
 import hostspark.state as state
-from agy_bot_core import BotConfig, ProcessResult
-from schedule_store import NO_REPORT_SENTINEL, ScheduleStore
+from hostspark.config import BotConfig
+from hostspark.core.executor import ProcessResult
+from hostspark.storage.schedule_store import NO_REPORT_SENTINEL, ScheduleStore
 
 
 UTC = timezone.utc
@@ -52,7 +53,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
         state.CONFIG = cfg
         bot.CONFIG = cfg
-        from chat_state import ChatStateStore
+        from hostspark.storage.chat_state import ChatStateStore
         sched_store = ScheduleStore(cfg.schedule_db_path)
         chat_store = ChatStateStore(cfg.state_db_path)
         state.SCHEDULE_STORE = sched_store

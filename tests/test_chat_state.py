@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from chat_state import ChatSettings, ChatStateStore
+from hostspark.storage.chat_state import ChatSettings, ChatStateStore
 
 
 class ChatStateStoreTests(unittest.TestCase):

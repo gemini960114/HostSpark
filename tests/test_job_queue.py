@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from job_queue import Job, JobQueue
+from hostspark.runtime.job_queue import Job, JobQueue
 
 
 class JobQueueTests(unittest.IsolatedAsyncioTestCase):

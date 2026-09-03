@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from instance_lock import InstanceLock, InstanceLockError
+from hostspark.runtime.instance_lock import InstanceLock, InstanceLockError
 
 
 class InstanceLockTests(unittest.TestCase):

@@ -6,19 +6,21 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agy_bot_core import (
-    ConfigError,
-    ProcessResult,
-    build_safe_subprocess_env,
+from hostspark.config import ConfigError, load_config
+from hostspark.core.executor import ProcessResult, run_process
+from hostspark.core.prompt import (
     compose_agy_prompt,
-    format_result_message,
-    load_config,
-    md_to_telegram_html,
-    redact_sensitive,
     detect_schedule_intent,
     model_has_baked_in_effort,
-    run_process,
+)
+from hostspark.core.sanitizer import (
+    build_safe_subprocess_env,
+    redact_sensitive,
     safe_join,
+)
+from hostspark.telegram.formatters import (
+    format_result_message,
+    md_to_telegram_html,
     split_markdown_into_chunks,
 )
 

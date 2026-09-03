@@ -4,37 +4,35 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from agy_bot_core import (
-    BotConfig,
-    ConfigError,
-    ProcessResult,
-    build_safe_subprocess_env,
-    compose_agy_prompt,
-    detect_schedule_intent,
-    format_result_message,
-    is_headless_permission_denied,
-    load_config,
-    md_to_telegram_html,
-    model_has_baked_in_effort,
-    redact_sensitive,
-    run_process,
-    safe_join,
-    split_markdown_into_chunks,
-)
-from agy_stream import run_agy_streaming
-from chat_state import ChatSettings, ChatStateStore
-from cli_passthrough import (
+from hostspark.config import BotConfig, ConfigError, load_config
+from hostspark.core.cli_args import (
     is_dangerous_custom_command,
     parse_cli_args,
     prepare_custom_args,
     validate_custom_args,
 )
-from instance_lock import InstanceLock, InstanceLockError
-from job_queue import Job, JobQueue
-from media_resolver import detect_output_media, fetch_ssrf_safe_media
-from pending_actions import PendingActionStore
-from pty_runner import run_pty_command
-from schedule_store import (
+from hostspark.core.executor import (
+    ProcessResult,
+    is_headless_permission_denied,
+    run_process,
+)
+from hostspark.core.prompt import (
+    compose_agy_prompt,
+    detect_schedule_intent,
+    model_has_baked_in_effort,
+)
+from hostspark.core.pty import run_pty_command
+from hostspark.core.sanitizer import (
+    build_safe_subprocess_env,
+    redact_sensitive,
+    safe_join,
+)
+from hostspark.core.streaming import run_agy_streaming
+from hostspark.runtime.instance_lock import InstanceLock, InstanceLockError
+from hostspark.runtime.job_queue import Job, JobQueue
+from hostspark.runtime.pending_actions import PendingActionStore
+from hostspark.storage.chat_state import ChatSettings, ChatStateStore
+from hostspark.storage.schedule_store import (
     NO_REPORT_SENTINEL,
     DueSchedule,
     Schedule,
@@ -45,6 +43,12 @@ from schedule_store import (
     parse_schedule_add_payload,
     render_prompt_variables,
 )
+from hostspark.telegram.formatters import (
+    format_result_message,
+    md_to_telegram_html,
+    split_markdown_into_chunks,
+)
+from hostspark.telegram.media import detect_output_media, fetch_ssrf_safe_media
 
 import hostspark.core.executor as _executor_mod
 import hostspark.state as state

@@ -11,10 +11,11 @@ from unittest.mock import AsyncMock, patch
 
 import bot
 import hostspark.state as state
-from agy_bot_core import BotConfig, ProcessResult
-from chat_state import ChatStateStore
-from media_resolver import fetch_ssrf_safe_media
-from schedule_store import ScheduleStore
+from hostspark.config import BotConfig
+from hostspark.core.executor import ProcessResult
+from hostspark.storage.chat_state import ChatStateStore
+from hostspark.storage.schedule_store import ScheduleStore
+from hostspark.telegram.media import fetch_ssrf_safe_media
 
 
 UTC = timezone.utc

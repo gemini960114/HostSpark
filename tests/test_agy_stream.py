@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agy_stream import run_agy_streaming
+from hostspark.core.streaming import run_agy_streaming
 
 
 class AgyStreamTests(unittest.IsolatedAsyncioTestCase):

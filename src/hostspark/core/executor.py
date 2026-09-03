@@ -205,8 +205,8 @@ async def run_agy(
     run_cwd = workdir or config.agy_workdir
 
     if on_chunk or on_event:
-        # Import lazily or dynamically to avoid circular import with telegram streaming
-        from agy_stream import run_agy_streaming
+        from hostspark.core.streaming import run_agy_streaming
+
         return await run_agy_streaming(
             args,
             cwd=run_cwd,

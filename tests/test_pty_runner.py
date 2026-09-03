@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pty_runner import (
+from hostspark.core.pty import (
     format_context_report,
     format_quota_limit_line,
     format_structured_quota,

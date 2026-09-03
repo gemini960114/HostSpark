@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from media_resolver import detect_output_media, is_ssrf_safe_url
+from hostspark.telegram.media import detect_output_media, is_ssrf_safe_url
 
 
 class MediaResolverTests(unittest.TestCase):

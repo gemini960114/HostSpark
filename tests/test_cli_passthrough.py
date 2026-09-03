@@ -1,6 +1,6 @@
 import unittest
 
-from cli_passthrough import (
+from hostspark.core.cli_args import (
     is_dangerous_custom_command,
     parse_cli_args,
     prepare_custom_args,

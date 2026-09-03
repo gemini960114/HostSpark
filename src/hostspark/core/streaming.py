@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -5,8 +7,8 @@ import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from agy_bot_core import ProcessResult, _stop_process, redact_sensitive
-
+from hostspark.core.executor import ProcessResult, _stop_process
+from hostspark.core.sanitizer import redact_sensitive
 
 logger = logging.getLogger(__name__)
 
