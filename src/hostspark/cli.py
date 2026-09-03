@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    logging.basicConfig(
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
     load_dotenv(state.ENV_PATH)
     try:
         state.CONFIG = load_config()
