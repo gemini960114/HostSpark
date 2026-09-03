@@ -720,6 +720,20 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
             await _wait_until(lambda: status_msg.delete.await_count > 0)
         status_msg.delete.assert_awaited_once()
 
+    def test_get_reply_keyboard_layout(self) -> None:
+        from hostspark.telegram.handlers.lifecycle import get_reply_keyboard
+
+        kb = get_reply_keyboard()
+        buttons = [[btn.text for btn in row] for row in kb.keyboard]
+        self.assertEqual(
+            buttons,
+            [
+                ["/status", "/model", "/effort"],
+                ["/session", "/new", "/clear"],
+                ["/schedule_list", "/cancel"],
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
