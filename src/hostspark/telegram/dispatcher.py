@@ -22,6 +22,7 @@ from hostspark.core.sanitizer import (
     build_safe_subprocess_env,
     redact_sensitive,
     safe_join,
+    validate_project_dir_name,
 )
 from hostspark.core.workspace import switch_project_dir
 from hostspark.runtime.job_queue import Job
@@ -369,6 +370,10 @@ async def global_callback_query_handler(update: Update, context: ContextTypes.DE
 
     if data.startswith("workdir_sel:"):
         name = data.split(":", 1)[1]
+        error = validate_project_dir_name(name)
+        if error:
+            await query.edit_message_text(f"❌ {error}")
+            return
         switch_project_dir(_get_chat_id(update), name)
         await query.edit_message_text(f"✅ 已切換至專案目錄 `{name}`，並開啟全新對話。")
         return

@@ -96,6 +96,8 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
         state.SCHEDULE_STORE = self.previous_store
         state.CHAT_STATE_STORE = self.previous_chat_store
         state.ENV_PATH = self.previous_env_path
+        state.PENDING_PROJECT_INIT.clear()
+        state.PENDING_CLEAR.clear()
         self.tempdir.cleanup()
 
     def test_build_application_handlers(self) -> None:
