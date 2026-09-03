@@ -66,7 +66,7 @@ fi
 chmod 600 .env
 
 echo "Validating bot configuration..."
-venv/bin/python bot.py --check-config
+"$SCRIPT_DIR/venv/bin/python" -m hostspark --check-config
 
 SERVICE_TMP="$(mktemp)"
 trap 'rm -f "$SERVICE_TMP"' EXIT
@@ -85,7 +85,7 @@ Group=$INSTALL_GROUP
 WorkingDirectory=$SCRIPT_DIR
 Environment="PATH=$AGY_BIN_DIR:$USER_HOME/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONUNBUFFERED=1"
-ExecStart="$SCRIPT_DIR/venv/bin/python" "$SCRIPT_DIR/bot.py"
+ExecStart="$SCRIPT_DIR/venv/bin/python" -m hostspark
 Restart=on-failure
 RestartSec=5
 UMask=0077

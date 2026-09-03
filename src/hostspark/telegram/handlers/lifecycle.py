@@ -8,7 +8,7 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.ext import ContextTypes
 
 import hostspark.state as state
-from hostspark.core.executor import run_process
+import hostspark.core.executor as executor
 from hostspark.core.sanitizer import build_safe_subprocess_env, redact_sensitive
 from hostspark.telegram.auth import _get_chat_id, reject_unauthorized
 from hostspark.telegram.formatters import send_formatted_response
@@ -78,7 +78,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def _status_section(title: str, args: list[str]) -> str:
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    result = await run_process(
+    result = await executor.run_process(
         args,
         cwd=config.agy_workdir,
         env=env,

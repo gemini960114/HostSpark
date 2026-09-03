@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-hostspark = "hostspark.telegram.app:main"
+hostspark = "hostspark.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -10,7 +10,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 import hostspark.state as state
-from hostspark.core.executor import run_process
+import hostspark.core.executor as executor
 from hostspark.core.sanitizer import build_safe_subprocess_env
 from hostspark.telegram.auth import reject_unauthorized
 
@@ -70,7 +70,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     status_msg = await update.message.reply_text("⬇️ 正在自 GitHub 拉取最新更新...")
     env = build_safe_subprocess_env()
     git_bin = shutil.which("git") or "git"
-    result = await run_process(
+    result = await executor.run_process(
         [git_bin, "pull", "origin", "main"],
         cwd=state.BASE_DIR,
         env=env,

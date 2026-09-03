@@ -17,7 +17,6 @@ from telegram.constants import ChatAction, ParseMode
 from telegram.ext import ContextTypes
 
 import hostspark.state as state
-from hostspark.core.executor import run_process
 from hostspark.core.prompt import detect_schedule_intent
 from hostspark.core.sanitizer import (
     build_safe_subprocess_env,
@@ -42,12 +41,7 @@ SAFE_EXTENSIONS = {
 }
 
 
-def _get_run_agy() -> Callable:
-    bot_mod = sys.modules.get("bot")
-    if bot_mod is not None and hasattr(bot_mod, "run_agy"):
-        return bot_mod.run_agy
-    from hostspark.core.executor import run_agy
-    return run_agy
+import hostspark.core.executor as executor
 
 
 async def handle_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -216,10 +210,9 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
 
     typing_task = asyncio.create_task(keep_typing())
     job_start_time = asyncio.get_event_loop().time()
-    run_agy_fn = _get_run_agy()
     try:
         async with state.agy_lock:
-            result = await run_agy_fn(
+            result = await executor.run_agy(
                 job.prompt,
                 chat_id=chat_id,
                 continue_conversation=True,
@@ -393,7 +386,7 @@ async def global_callback_query_handler(update: Update, context: ContextTypes.DE
         env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
         try:
             async with state.agy_lock:
-                res = await run_process(
+                res = await executor.run_process(
                     [str(config.agy_bin)] + args,
                     cwd=config.agy_workdir,
                     env=env,

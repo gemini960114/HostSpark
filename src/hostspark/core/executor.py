@@ -43,7 +43,7 @@ async def _read_stream_limited(
     return bytes(captured), truncated
 
 
-async def _stop_process(process: asyncio.subprocess.Process) -> None:
+async def stop_process(process: asyncio.subprocess.Process) -> None:
     if process.returncode is not None:
         return
     with suppress(ProcessLookupError):
@@ -60,6 +60,10 @@ async def _stop_process(process: asyncio.subprocess.Process) -> None:
             else:
                 process.kill()
         await process.wait()
+
+
+_stop_process = stop_process
+
 
 
 async def run_process(

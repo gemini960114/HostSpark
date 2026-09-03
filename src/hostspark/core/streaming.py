@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from hostspark.core.executor import ProcessResult, _stop_process
+from hostspark.core.executor import ProcessResult, stop_process
 from hostspark.core.sanitizer import redact_sensitive
 
 logger = logging.getLogger(__name__)
@@ -118,9 +118,9 @@ async def run_agy_streaming(
         await asyncio.wait_for(process.wait(), timeout=timeout_seconds)
     except asyncio.TimeoutError:
         timed_out = True
-        await _stop_process(process)
+        await stop_process(process)
     except BaseException:
-        await _stop_process(process)
+        await stop_process(process)
         await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
         raise
 

@@ -25,12 +25,7 @@ from hostspark.telegram.formatters import result_message, send_formatted_respons
 logger = logging.getLogger(__name__)
 
 
-def _get_run_agy() -> Callable:
-    bot_mod = sys.modules.get("bot")
-    if bot_mod is not None and hasattr(bot_mod, "run_agy"):
-        return bot_mod.run_agy
-    from hostspark.core.executor import run_agy
-    return run_agy
+import hostspark.core.executor as executor
 
 
 def _local_time(value: datetime | None, timezone_name: str) -> str:
@@ -128,10 +123,9 @@ async def _run_schedule_add_flow(
     )
     builder_workdir = config.schedule_db_path.parent / "workspaces" / "prompt-builder"
     builder_workdir.mkdir(parents=True, exist_ok=True)
-    run_agy_fn = _get_run_agy()
     try:
         async with state.agy_lock:
-            result = await run_agy_fn(
+            result = await executor.run_agy(
                 expansion_prompt,
                 continue_conversation=False,
                 workdir=builder_workdir,

@@ -21,12 +21,7 @@ from hostspark.telegram.formatters import result_message, send_formatted_to_chat
 logger = logging.getLogger(__name__)
 
 
-def _get_run_agy() -> Callable:
-    bot_mod = sys.modules.get("bot")
-    if bot_mod is not None and hasattr(bot_mod, "run_agy"):
-        return bot_mod.run_agy
-    from hostspark.core.executor import run_agy
-    return run_agy
+import hostspark.core.executor as executor
 
 
 def cleanup_expired_workspaces_and_uploads(
@@ -81,10 +76,9 @@ async def _execute_due_schedule(application, due: DueSchedule) -> None:
     success = False
     error: str | None = None
     auto_paused = False
-    run_agy_fn = _get_run_agy()
     try:
         async with state.agy_lock:
-            result = await run_agy_fn(
+            result = await executor.run_agy(
                 prompt,
                 continue_conversation=False,
                 workdir=workspace,

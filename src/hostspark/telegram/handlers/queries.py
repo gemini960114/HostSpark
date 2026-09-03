@@ -14,11 +14,7 @@ from hostspark.telegram.auth import _get_chat_id, reject_unauthorized
 logger = logging.getLogger(__name__)
 
 
-def _get_enqueue_fn():
-    bot_mod = sys.modules.get("bot")
-    if bot_mod is not None and hasattr(bot_mod, "_enqueue_and_handle_prompt"):
-        return bot_mod._enqueue_and_handle_prompt
-    raise RuntimeError("_enqueue_and_handle_prompt is not available")
+from hostspark.telegram.dispatcher import _enqueue_and_handle_prompt
 
 
 async def usage_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -62,11 +58,11 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     payload = " ".join(context.args) if context.args else ""
     prompt = f"請將以下對話內容與技巧整理為可重複使用的規則與 Skill：\n\n{payload}" if payload else "請將本對話的經驗與技巧整理為可重複使用的規則與 Skill。"
-    await _get_enqueue_fn()(update, context, prompt)
+    await _enqueue_and_handle_prompt(update, context, prompt)
 
 
 async def compact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await reject_unauthorized(update):
         return
     prompt = "請壓縮目前對話的上下文，保留核心決策、狀態與待辦事項。"
-    await _get_enqueue_fn()(update, context, prompt)
+    await _enqueue_and_handle_prompt(update, context, prompt)

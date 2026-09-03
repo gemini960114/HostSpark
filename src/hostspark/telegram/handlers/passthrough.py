@@ -10,7 +10,7 @@ from hostspark.core.cli_args import (
     prepare_custom_args,
     validate_custom_args,
 )
-from hostspark.core.executor import run_process
+import hostspark.core.executor as executor
 from hostspark.core.sanitizer import (
     build_safe_subprocess_env,
     redact_sensitive,
@@ -58,7 +58,7 @@ async def agy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
     try:
         async with state.agy_lock:
-            res = await run_process(
+            res = await executor.run_process(
                 [str(config.agy_bin)] + final_args,
                 cwd=config.agy_workdir,
                 env=env,
@@ -90,7 +90,7 @@ async def agy_confirm_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
     try:
         async with state.agy_lock:
-            res = await run_process(
+            res = await executor.run_process(
                 [str(config.agy_bin)] + args,
                 cwd=config.agy_workdir,
                 env=env,
@@ -109,7 +109,7 @@ async def agents_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    res = await run_process([str(config.agy_bin), "agents"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
+    res = await executor.run_process([str(config.agy_bin), "agents"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
     await send_formatted_response(update.message, result_message(res))
 
 
@@ -118,7 +118,7 @@ async def changelog_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    res = await run_process([str(config.agy_bin), "changelog"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
+    res = await executor.run_process([str(config.agy_bin), "changelog"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
     await send_formatted_response(update.message, result_message(res))
 
 
@@ -127,7 +127,7 @@ async def plugins_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    res = await run_process([str(config.agy_bin), "plugins"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
+    res = await executor.run_process([str(config.agy_bin), "plugins"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
     await send_formatted_response(update.message, result_message(res))
 
 
@@ -136,7 +136,7 @@ async def cli_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    res = await run_process([str(config.agy_bin), "--help"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
+    res = await executor.run_process([str(config.agy_bin), "--help"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
     await send_formatted_response(update.message, f"```\n{res.stdout}\n```")
 
 
@@ -145,7 +145,7 @@ async def version_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     config = state.get_config()
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
-    res = await run_process([str(config.agy_bin), "--version"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
+    res = await executor.run_process([str(config.agy_bin), "--version"], cwd=config.agy_workdir, env=env, timeout_seconds=15, max_output_bytes=50000)
     await send_formatted_response(update.message, f"📌 **AGY CLI Version**:\n`{res.stdout or res.stderr}`")
 
 
