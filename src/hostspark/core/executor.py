@@ -10,7 +10,7 @@ from typing import Any
 
 import hostspark.state as state
 from hostspark.core.prompt import compose_agy_prompt, resolve_model_and_effort_args
-from hostspark.core.sanitizer import build_safe_subprocess_env, redact_sensitive
+from hostspark.core.sanitizer import build_safe_subprocess_env, redact_sensitive, safe_join
 
 
 @dataclass(frozen=True)
@@ -149,9 +149,17 @@ async def run_agy(
         chat_state = state.get_chat_state_store().get_or_create(chat_id)
 
     if chat_id is not None and workdir is None:
-        workdir = config.state_db_path.parent / "workspaces" / f"chat-{chat_id}"
-        workdir.mkdir(parents=True, exist_ok=True)
-        add_primary_workdir = True
+        if chat_state and chat_state.workspace_dir:
+            # Chat has explicitly picked a project directory via /new — use it
+            # as-is and don't also expose config.agy_workdir via --add-dir
+            # (add_primary_workdir stays False): the whole point of picking a
+            # project dir is to confine agy to it.
+            workdir = safe_join(config.workspace_root, chat_state.workspace_dir)
+            workdir.mkdir(parents=True, exist_ok=True)
+        else:
+            workdir = config.state_db_path.parent / "workspaces" / f"chat-{chat_id}"
+            workdir.mkdir(parents=True, exist_ok=True)
+            add_primary_workdir = True
 
     if chat_state:
         if chat_state.conversation_id:

@@ -32,6 +32,32 @@ def safe_join(base: Path, *parts: str | Path) -> Path:
     return current
 
 
+_PROJECT_DIR_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$")
+RESERVED_PROJECT_DIR_NAMES = {"uploads", "workspaces"}
+
+
+def validate_project_dir_name(name: str) -> str | None:
+    """Validate a single-segment project directory name (for `/new <name>`).
+
+    Returns None when `name` is safe to use as-is with safe_join(); otherwise
+    a human-readable (Traditional Chinese) reason it was rejected. Deliberately
+    an allowlist (ASCII letters/digits/_/./-, must start with an alnum or
+    underscore) rather than a denylist, so it's safe by construction against
+    path traversal and against colliding with reserved subfolder names other
+    parts of the bot already use (uploads/, workspaces/).
+    """
+    name = name.strip()
+    if not name:
+        return "目錄名稱不可為空。"
+    if name in {".", ".."}:
+        return "不合法的目錄名稱。"
+    if name.lower() in RESERVED_PROJECT_DIR_NAMES:
+        return f"`{name}` 是保留名稱，請換一個。"
+    if not _PROJECT_DIR_NAME_RE.match(name):
+        return "目錄名稱只能包含英數字、底線、句點、連字號，且開頭不可是符號。"
+    return None
+
+
 def build_safe_subprocess_env(extra_path: Path | None = None) -> dict[str, str]:
     env = os.environ.copy()
     for var in (

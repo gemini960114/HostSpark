@@ -22,13 +22,13 @@ from hostspark.telegram.handlers import (
     agy_command,
     agy_confirm_command,
     changelog_command,
+    clear_command,
     disable_slash_commands_command,
     effort_command,
     json_schema_command,
     log_file_command,
     mode_command,
     model_command,
-    new_command,
     new_project_command,
     output_format_command,
     plugins_command,
@@ -157,10 +157,12 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("medium", last_call_text)
         self.assertIn("accept-edits", last_call_text)
 
-        # 7. /new command
+        # 7. /clear command — pure "reset conversation, keep everything else"
+        # (this is what plain /new used to do before it grew a project-dir
+        # picker; /new's own behavior is covered in tests/test_bot.py)
         state.CHAT_STATE_STORE.update(2001, conversation_id="some-uuid")
         self.assertIsNotNone(state.CHAT_STATE_STORE.get_or_create(2001).conversation_id)
-        await new_command(update, SimpleNamespace())
+        await clear_command(update, SimpleNamespace())
         self.assertIsNone(state.CHAT_STATE_STORE.get_or_create(2001).conversation_id)
 
     async def test_extended_chat_state_commands(self) -> None:

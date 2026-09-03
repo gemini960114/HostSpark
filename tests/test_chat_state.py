@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -27,6 +28,60 @@ class ChatStateStoreTests(unittest.TestCase):
         self.assertFalse(settings.new_project)
         self.assertFalse(settings.disable_slash_commands)
         self.assertEqual(settings.verbose, "compact")
+        self.assertIsNone(settings.workspace_dir)
+
+    def test_workspace_dir_round_trips(self) -> None:
+        updated = self.store.update(12345, workspace_dir="my-project")
+        self.assertEqual(updated.workspace_dir, "my-project")
+        self.assertEqual(self.store.get_or_create(12345).workspace_dir, "my-project")
+
+    def test_migration_adds_workspace_dir_to_pre_existing_database(self) -> None:
+        # Simulate a database created before workspace_dir existed: build the
+        # table by hand with the old column list, insert a row, then confirm
+        # opening it through ChatStateStore (which runs the migration in
+        # _initialize()) adds the column without disturbing existing data.
+        old_db_path = Path(self.tempdir.name) / "legacy_chat_state.db"
+        conn = sqlite3.connect(old_db_path)
+        conn.execute(
+            """
+            CREATE TABLE chat_settings (
+                chat_id INTEGER PRIMARY KEY,
+                conversation_id TEXT,
+                model TEXT,
+                effort TEXT DEFAULT 'high',
+                mode TEXT DEFAULT 'plan',
+                sandbox INTEGER DEFAULT 1,
+                agent TEXT,
+                project TEXT,
+                add_dirs TEXT DEFAULT '[]',
+                output_format TEXT DEFAULT 'text',
+                json_schema TEXT,
+                log_file TEXT,
+                print_timeout TEXT,
+                continue_enabled INTEGER DEFAULT 1,
+                new_project INTEGER DEFAULT 0,
+                disable_slash_commands INTEGER DEFAULT 0,
+                verbose TEXT DEFAULT 'compact',
+                in_flight_prompt TEXT,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO chat_settings (chat_id, model, updated_at) VALUES (?, ?, ?)",
+            (999, "old-model", "2020-01-01T00:00:00+00:00"),
+        )
+        conn.commit()
+        conn.close()
+
+        migrated_store = ChatStateStore(old_db_path)
+        settings = migrated_store.get_or_create(999)
+        self.assertEqual(settings.model, "old-model")
+        self.assertIsNone(settings.workspace_dir)
+
+        # Opening it a second time (e.g. a service restart) must be a no-op,
+        # not an "duplicate column name" error.
+        ChatStateStore(old_db_path)
 
     def test_update_fields(self) -> None:
         updated = self.store.update(

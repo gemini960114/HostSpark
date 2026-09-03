@@ -147,6 +147,12 @@ def load_config(environ: Mapping[str, str] | None = None) -> BotConfig:
     if not workspace_root.is_dir():
         raise ConfigError(f"AGY_WORKSPACE_ROOT 不存在或不是目錄：{workspace_root}")
 
+    # Make sure /new's project-directory picker is never empty on a fresh
+    # install. This name is never auto-assigned to any chat — chats keep
+    # using their anonymous per-chat workdir until they explicitly /new it.
+    default_project_dir_name = env.get("AGY_DEFAULT_PROJECT_DIR", "").strip() or "initial"
+    (workspace_root / default_project_dir_name).mkdir(parents=True, exist_ok=True)
+
     timeout_seconds = _positive_int(
         env.get("AGY_TIMEOUT_SECONDS", "600"), "AGY_TIMEOUT_SECONDS", 10, 3600
     )

@@ -22,6 +22,7 @@ class ChatSettings:
     agent: str | None = None
     project: str | None = None
     add_dirs: tuple[str, ...] = ()
+    workspace_dir: str | None = None
     output_format: str = "text"
     json_schema: str | None = None
     log_file: str | None = None
@@ -83,6 +84,13 @@ class ChatStateStore:
                 )
                 """
             )
+            # Migration: chat_settings already existed in production before
+            # workspace_dir was added, and CREATE TABLE IF NOT EXISTS above
+            # only affects brand-new databases, so add the column by hand
+            # when missing. Idempotent — safe to run on every startup.
+            existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(chat_settings)")}
+            if "workspace_dir" not in existing_cols:
+                conn.execute("ALTER TABLE chat_settings ADD COLUMN workspace_dir TEXT")
         try:
             os.chmod(self.path, 0o600)
         except OSError:
@@ -107,6 +115,7 @@ class ChatStateStore:
             agent=row["agent"],
             project=row["project"],
             add_dirs=tuple(str(d) for d in add_dirs_list),
+            workspace_dir=row["workspace_dir"],
             output_format=row["output_format"] or "text",
             json_schema=row["json_schema"],
             log_file=row["log_file"],
@@ -163,6 +172,7 @@ class ChatStateStore:
             "agent",
             "project",
             "add_dirs",
+            "workspace_dir",
             "output_format",
             "json_schema",
             "log_file",

@@ -17,7 +17,9 @@ from hostspark.core.sanitizer import (
     build_safe_subprocess_env,
     redact_sensitive,
     safe_join,
+    validate_project_dir_name,
 )
+from hostspark.core.workspace import list_project_dirs
 from hostspark.telegram.formatters import (
     format_result_message,
     md_to_telegram_html,
@@ -129,6 +131,38 @@ class ExtendedConfigAndSecurityTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 safe_join(base, "/etc/shadow")
+
+    def test_validate_project_dir_name(self) -> None:
+        self.assertIsNone(validate_project_dir_name("my-project_1.2"))
+        self.assertIsNotNone(validate_project_dir_name(""))
+        self.assertIsNotNone(validate_project_dir_name("   "))
+        self.assertIsNotNone(validate_project_dir_name(".."))
+        self.assertIsNotNone(validate_project_dir_name("."))
+        self.assertIsNotNone(validate_project_dir_name("../../etc"))
+        self.assertIsNotNone(validate_project_dir_name("a/b"))
+        self.assertIsNotNone(validate_project_dir_name("uploads"))
+        self.assertIsNotNone(validate_project_dir_name("Uploads"))
+        self.assertIsNotNone(validate_project_dir_name("workspaces"))
+        self.assertIsNotNone(validate_project_dir_name("-leading-dash"))
+        self.assertIsNotNone(validate_project_dir_name("has space"))
+        # A name that passes validation must never be rejected by safe_join.
+        with tempfile.TemporaryDirectory() as base_dir:
+            base = Path(base_dir)
+            self.assertIsNone(validate_project_dir_name("ok_name-1.2"))
+            safe_join(base, "ok_name-1.2")  # must not raise
+
+    def test_list_project_dirs(self) -> None:
+        with tempfile.TemporaryDirectory() as base_dir:
+            base = Path(base_dir)
+            (base / "project-a").mkdir()
+            (base / "project-b").mkdir()
+            (base / "uploads").mkdir()  # reserved, must be excluded
+            (base / "workspaces").mkdir()  # reserved, must be excluded
+            (base / "not-a-dir.txt").write_text("x")  # files must be excluded
+            self.assertEqual(list_project_dirs(base), ["project-a", "project-b"])
+
+        # A root that doesn't exist yet must return an empty list, not raise.
+        self.assertEqual(list_project_dirs(Path("/nonexistent/path/xyz")), [])
 
     def test_build_safe_subprocess_env(self) -> None:
         with patch.dict(os.environ, {

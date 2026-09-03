@@ -28,7 +28,7 @@ from hostspark.telegram.dispatcher import (
     global_callback_query_handler,
     handle_message,
 )
-from hostspark.telegram.handlers import start_command
+from hostspark.telegram.handlers import clear_command, new_command, start_command
 
 UTC = timezone.utc
 VALID_TOKEN = f"{987654321}:{'A' * 25}"
@@ -109,6 +109,138 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("--dangerously-skip-permissions", args)
         self.assertIn("--add-dir", args)
         self.assertEqual(mocked.await_args.kwargs["cwd"], isolated)
+
+    async def test_executor_uses_selected_workspace_dir_without_extra_add_dir(self) -> None:
+        chat_id = 557
+        state.CHAT_STATE_STORE.update(chat_id, workspace_dir="my-project")
+        expected_cwd = state.CONFIG.workspace_root / "my-project"
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi", chat_id=chat_id, continue_conversation=False)
+        args = mocked.await_args.args[0]
+        self.assertEqual(mocked.await_args.kwargs["cwd"], expected_cwd)
+        self.assertTrue(expected_cwd.is_dir())
+        # A deliberately-chosen project dir should NOT also expose
+        # config.agy_workdir via an extra --add-dir.
+        self.assertNotIn(str(state.CONFIG.agy_workdir), args)
+
+    async def test_executor_falls_back_to_anonymous_workdir_without_workspace_dir(self) -> None:
+        # A chat that has never used /new must be completely unaffected.
+        chat_id = 558
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi", chat_id=chat_id, continue_conversation=False)
+        args = mocked.await_args.args[0]
+        cwd = mocked.await_args.kwargs["cwd"]
+        self.assertEqual(cwd, state.CONFIG.state_db_path.parent / "workspaces" / f"chat-{chat_id}")
+        self.assertIn("--add-dir", args)
+
+    async def test_new_command_with_name_creates_and_switches_project_dir(self) -> None:
+        chat_id = 601
+        state.CHAT_STATE_STORE.update(chat_id, conversation_id="old-conv", add_dirs=["/some/other/dir"])
+        msg = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123456789),
+            effective_chat=SimpleNamespace(id=chat_id),
+            message=msg,
+        )
+        context = SimpleNamespace(args=["hmp-web"])
+        await new_command(update, context)
+
+        target = state.CONFIG.workspace_root / "hmp-web"
+        self.assertTrue(target.is_dir())
+        settings = state.CHAT_STATE_STORE.get_or_create(chat_id)
+        self.assertEqual(settings.workspace_dir, "hmp-web")
+        self.assertIsNone(settings.conversation_id)
+        self.assertEqual(settings.add_dirs, ())  # cleared on real switch
+        msg.reply_text.assert_awaited_once()
+        self.assertIn("hmp-web", msg.reply_text.await_args.args[0])
+
+    async def test_new_command_rejects_invalid_name(self) -> None:
+        chat_id = 602
+        msg = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123456789),
+            effective_chat=SimpleNamespace(id=chat_id),
+            message=msg,
+        )
+        for bad_name in ["../../etc", "uploads", "has space"]:
+            msg.reply_text.reset_mock()
+            await new_command(update, SimpleNamespace(args=[bad_name]))
+            msg.reply_text.assert_awaited_once()
+            self.assertTrue(msg.reply_text.await_args.args[0].startswith("❌"))
+        self.assertIsNone(state.CHAT_STATE_STORE.get_or_create(chat_id).workspace_dir)
+
+    async def test_new_command_without_args_lists_existing_dirs_and_marks_current(self) -> None:
+        chat_id = 603
+        (state.CONFIG.workspace_root / "already-there").mkdir(parents=True, exist_ok=True)
+        (state.CONFIG.workspace_root / "uploads").mkdir(parents=True, exist_ok=True)
+        state.CHAT_STATE_STORE.update(chat_id, workspace_dir="already-there")
+        msg = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123456789),
+            effective_chat=SimpleNamespace(id=chat_id),
+            message=msg,
+        )
+        await new_command(update, SimpleNamespace(args=[]))
+        msg.reply_text.assert_awaited_once()
+        keyboard = msg.reply_text.await_args.kwargs["reply_markup"]
+        labels = [row[0].text for row in keyboard.inline_keyboard]
+        self.assertEqual(len(labels), 1)  # "uploads" excluded
+        self.assertIn("already-there", labels[0])
+        self.assertTrue(labels[0].startswith("✅"))
+
+    async def test_workdir_sel_callback_switches_project_dir(self) -> None:
+        chat_id = 604
+        (state.CONFIG.workspace_root / "picked-project").mkdir(parents=True, exist_ok=True)
+        state.CHAT_STATE_STORE.update(chat_id, conversation_id="old-conv")
+        user = SimpleNamespace(id=123456789)
+        chat = SimpleNamespace(id=chat_id, type="private")
+        query = SimpleNamespace(
+            from_user=user,
+            data="workdir_sel:picked-project",
+            answer=AsyncMock(),
+            edit_message_text=AsyncMock(),
+            message=SimpleNamespace(chat=chat),
+        )
+        update = SimpleNamespace(callback_query=query, effective_chat=chat, effective_user=user)
+        await global_callback_query_handler(update, SimpleNamespace())
+        settings = state.CHAT_STATE_STORE.get_or_create(chat_id)
+        self.assertEqual(settings.workspace_dir, "picked-project")
+        self.assertIsNone(settings.conversation_id)
+        query.edit_message_text.assert_awaited_once()
+
+    async def test_clear_command_only_resets_conversation_id(self) -> None:
+        chat_id = 605
+        state.CHAT_STATE_STORE.update(
+            chat_id, conversation_id="old-conv", workspace_dir="my-project", add_dirs=["/keep/me"]
+        )
+        msg = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123456789),
+            effective_chat=SimpleNamespace(id=chat_id),
+            message=msg,
+        )
+        await clear_command(update, SimpleNamespace())
+        settings = state.CHAT_STATE_STORE.get_or_create(chat_id)
+        self.assertIsNone(settings.conversation_id)
+        # /clear must NOT touch workspace_dir or add_dirs — only /new does.
+        self.assertEqual(settings.workspace_dir, "my-project")
+        self.assertEqual(settings.add_dirs, ("/keep/me",))
+
+    async def test_reselecting_same_workspace_dir_keeps_add_dirs(self) -> None:
+        chat_id = 606
+        (state.CONFIG.workspace_root / "same-project").mkdir(parents=True, exist_ok=True)
+        state.CHAT_STATE_STORE.update(chat_id, workspace_dir="same-project", add_dirs=["/keep/me"])
+        msg = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            effective_user=SimpleNamespace(id=123456789),
+            effective_chat=SimpleNamespace(id=chat_id),
+            message=msg,
+        )
+        await new_command(update, SimpleNamespace(args=["same-project"]))
+        settings = state.CHAT_STATE_STORE.get_or_create(chat_id)
+        self.assertEqual(settings.add_dirs, ("/keep/me",))
 
     async def test_effort_flag_omitted_for_models_with_baked_in_effort(self) -> None:
         chat_id = 555

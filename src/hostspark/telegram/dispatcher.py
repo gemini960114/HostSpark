@@ -23,6 +23,7 @@ from hostspark.core.sanitizer import (
     redact_sensitive,
     safe_join,
 )
+from hostspark.core.workspace import switch_project_dir
 from hostspark.runtime.job_queue import Job
 from hostspark.runtime.scheduler import _local_time, _run_schedule_add_flow
 from hostspark.telegram.auth import _get_chat_id, is_authorized, reject_unauthorized
@@ -364,6 +365,12 @@ async def global_callback_query_handler(update: Update, context: ContextTypes.DE
         level = data.split(":", 1)[1]
         state.get_chat_state_store().update(_get_chat_id(update), effort=level)
         await query.edit_message_text(f"✅ 已設定推理深度 (effort) 為：`{level}`")
+        return
+
+    if data.startswith("workdir_sel:"):
+        name = data.split(":", 1)[1]
+        switch_project_dir(_get_chat_id(update), name)
+        await query.edit_message_text(f"✅ 已切換至專案目錄 `{name}`，並開啟全新對話。")
         return
 
     if data.startswith("setdefault_confirm:"):

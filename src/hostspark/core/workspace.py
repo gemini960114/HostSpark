@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import hostspark.state as state
+from hostspark.core.sanitizer import RESERVED_PROJECT_DIR_NAMES
+
+
+def list_project_dirs(root: Path) -> list[str]:
+    """Subdirectories of `root` selectable as a project dir, alphabetical."""
+    if not root.is_dir():
+        return []
+    return sorted(
+        p.name for p in root.iterdir()
+        if p.is_dir() and p.name.lower() not in RESERVED_PROJECT_DIR_NAMES
+    )
+
+
+def switch_project_dir(chat_id: int, name: str) -> None:
+    """Point `chat_id` at project directory `name` and start a fresh session.
+
+    Also drops any /add_dir entries from the previous project — those are
+    absolute paths with no per-project scoping, so left alone they'd keep
+    granting agy access to a now-unrelated project's extra directories.
+    """
+    store = state.get_chat_state_store()
+    current = store.get_or_create(chat_id).workspace_dir
+    fields = {"workspace_dir": name, "conversation_id": None}
+    if current != name:
+        fields["add_dirs"] = []
+    store.update(chat_id, **fields)
