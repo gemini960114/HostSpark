@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import bot
+import hostspark.state as state
 from agy_bot_core import BotConfig, ProcessResult
 from chat_state import ChatStateStore
 from media_resolver import fetch_ssrf_safe_media
@@ -31,13 +32,14 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.conv_db = self.root / "state" / "conversations.db"
         self.env_file = self.root / ".env"
 
-        self.previous_config = bot.CONFIG
-        self.previous_store = bot.SCHEDULE_STORE
-        self.previous_chat_store = bot.CHAT_STATE_STORE
-        self.previous_env_path = bot.ENV_PATH
+        self.previous_config = state.CONFIG
+        self.previous_store = state.SCHEDULE_STORE
+        self.previous_chat_store = state.CHAT_STATE_STORE
+        self.previous_env_path = state.ENV_PATH
 
+        state.ENV_PATH = self.env_file
         bot.ENV_PATH = self.env_file
-        bot.CONFIG = BotConfig(
+        cfg = BotConfig(
             bot_token=VALID_TOKEN,
             allowed_user_ids=frozenset({1001, 1002}),
             allowed_chat_ids=frozenset({2001, 2002}),
@@ -58,15 +60,26 @@ class FullFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             private_only=False,
             allow_bot_update=True,
         )
-        bot.SCHEDULE_STORE = ScheduleStore(bot.CONFIG.schedule_db_path)
-        bot.CHAT_STATE_STORE = ChatStateStore(bot.CONFIG.state_db_path)
+        state.CONFIG = cfg
+        bot.CONFIG = cfg
+        sched_store = ScheduleStore(cfg.schedule_db_path)
+        chat_store = ChatStateStore(cfg.state_db_path)
+        state.SCHEDULE_STORE = sched_store
+        bot.SCHEDULE_STORE = sched_store
+        state.CHAT_STATE_STORE = chat_store
+        bot.CHAT_STATE_STORE = chat_store
 
     async def asyncTearDown(self) -> None:
+        state.CONFIG = self.previous_config
         bot.CONFIG = self.previous_config
+        state.SCHEDULE_STORE = self.previous_store
         bot.SCHEDULE_STORE = self.previous_store
+        state.CHAT_STATE_STORE = self.previous_chat_store
         bot.CHAT_STATE_STORE = self.previous_chat_store
+        state.ENV_PATH = self.previous_env_path
         bot.ENV_PATH = self.previous_env_path
         self.tempdir.cleanup()
+
 
     def test_build_application_handlers(self) -> None:
         # Build real Application with python-telegram-bot to verify all registered CommandHandlers

@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from hostspark.config import BotConfig
+from chat_state import ChatStateStore
+from instance_lock import InstanceLock
+from job_queue import JobQueue
+from pending_actions import PendingActionStore
+from schedule_store import ScheduleStore
+
+logger = logging.getLogger(__name__)
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_PATH = Path(os.getenv("AGY_ENV_FILE", str(BASE_DIR / ".env"))).expanduser()
+
+CONFIG: BotConfig | None = None
+SCHEDULE_STORE: ScheduleStore | None = None
+CHAT_STATE_STORE: ChatStateStore | None = None
+PENDING_ACTIONS = PendingActionStore()
+JOB_QUEUE = JobQueue(maxsize=50)
+INSTANCE_LOCK: InstanceLock | None = None
+agy_lock = asyncio.Lock()
+
+_PENDING_CONTEXT_TTL_SECONDS = 600
+_PENDING_CONTEXT: dict[int, tuple[float, str]] = {}
+
+
+def queue_context_injection(chat_id: int, report_text: str) -> None:
+    _PENDING_CONTEXT[chat_id] = (asyncio.get_event_loop().time(), report_text)
+
+
+def pop_context_injection(chat_id: int) -> str | None:
+    entry = _PENDING_CONTEXT.pop(chat_id, None)
+    if entry is None:
+        return None
+    queued_at, report_text = entry
+    if asyncio.get_event_loop().time() - queued_at > _PENDING_CONTEXT_TTL_SECONDS:
+        return None
+    return report_text
+
+
+def get_config() -> BotConfig:
+    if CONFIG is None:
+        raise RuntimeError("Bot 尚未載入設定")
+    return CONFIG
+
+
+def get_schedule_store() -> ScheduleStore:
+    if SCHEDULE_STORE is None:
+        raise RuntimeError("排程資料庫尚未初始化")
+    return SCHEDULE_STORE
+
+
+def get_chat_state_store() -> ChatStateStore:
+    if CHAT_STATE_STORE is None:
+        raise RuntimeError("對話狀態資料庫尚未初始化")
+    return CHAT_STATE_STORE
+
+
+def get_pending_actions() -> PendingActionStore:
+    return PENDING_ACTIONS
+
+
+def get_job_queue() -> JobQueue:
+    return JOB_QUEUE
+
+
+def get_instance_lock() -> InstanceLock | None:
+    return INSTANCE_LOCK
+
+
+def set_instance_lock(lock: InstanceLock | None) -> None:
+    global INSTANCE_LOCK
+    INSTANCE_LOCK = lock
+
+
+def get_agy_lock() -> asyncio.Lock:
+    return agy_lock

@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import bot
+import hostspark.state as state
 from agy_bot_core import BotConfig, ProcessResult
 from schedule_store import NO_REPORT_SENTINEL, ScheduleStore
 
@@ -32,10 +33,10 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         root = Path(self.tempdir.name)
         workdir = root / "primary"
         workdir.mkdir()
-        self.previous_config = bot.CONFIG
-        self.previous_store = bot.SCHEDULE_STORE
-        self.previous_chat_store = bot.CHAT_STATE_STORE
-        bot.CONFIG = BotConfig(
+        self.previous_config = state.CONFIG
+        self.previous_store = state.SCHEDULE_STORE
+        self.previous_chat_store = state.CHAT_STATE_STORE
+        cfg = BotConfig(
             bot_token=VALID_TOKEN,
             allowed_user_id=123456789,
             agy_bin=Path(sys.executable),
@@ -49,15 +50,25 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
             schedule_min_interval_minutes=15,
             schedule_max_tasks=20,
         )
+        state.CONFIG = cfg
+        bot.CONFIG = cfg
         from chat_state import ChatStateStore
-        bot.SCHEDULE_STORE = ScheduleStore(bot.CONFIG.schedule_db_path)
-        bot.CHAT_STATE_STORE = ChatStateStore(bot.CONFIG.state_db_path)
+        sched_store = ScheduleStore(cfg.schedule_db_path)
+        chat_store = ChatStateStore(cfg.state_db_path)
+        state.SCHEDULE_STORE = sched_store
+        bot.SCHEDULE_STORE = sched_store
+        state.CHAT_STATE_STORE = chat_store
+        bot.CHAT_STATE_STORE = chat_store
 
     async def asyncTearDown(self) -> None:
+        state.CONFIG = self.previous_config
         bot.CONFIG = self.previous_config
+        state.SCHEDULE_STORE = self.previous_store
         bot.SCHEDULE_STORE = self.previous_store
+        state.CHAT_STATE_STORE = self.previous_chat_store
         bot.CHAT_STATE_STORE = self.previous_chat_store
         self.tempdir.cleanup()
+
 
     async def test_prompt_builder_never_receives_full_permission_flag(self) -> None:
         isolated = bot.CONFIG.schedule_db_path.parent / "workspaces" / "builder"

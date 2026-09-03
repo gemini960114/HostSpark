@@ -77,8 +77,26 @@ from schedule_store import (
 )
 
 
-BASE_DIR = Path(__file__).resolve().parent
-ENV_PATH = Path(os.getenv("AGY_ENV_FILE", str(BASE_DIR / ".env"))).expanduser()
+import hostspark.state as state
+from hostspark.state import (
+    BASE_DIR,
+    ENV_PATH,
+    JOB_QUEUE,
+    PENDING_ACTIONS,
+    agy_lock,
+    get_agy_lock,
+    get_chat_state_store,
+    get_config,
+    get_instance_lock,
+    get_job_queue,
+    get_pending_actions,
+    get_schedule_store,
+    pop_context_injection,
+    queue_context_injection,
+    set_instance_lock,
+)
+
+
 load_dotenv(ENV_PATH)
 
 logging.basicConfig(
@@ -87,60 +105,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-CONFIG: BotConfig | None = None
-SCHEDULE_STORE: ScheduleStore | None = None
-CHAT_STATE_STORE: ChatStateStore | None = None
-PENDING_ACTIONS = PendingActionStore()
-JOB_QUEUE = JobQueue(maxsize=50)
-INSTANCE_LOCK: InstanceLock | None = None
-agy_lock = asyncio.Lock()
 UTC = timezone.utc
-
-# Read-only commands like /usage, /quota, /context run through a separate PTY /
-# direct-JSON query path that never touches the chat's own AGY conversation --
-# so a normal follow-up question (e.g. "解說使用量") has no memory of what the
-# report said. This buffer lets the report text ride along as extra context on
-# the very next normal chat turn only (consumed once, then dropped), without
-# permanently polluting every future turn or costing an extra AGY call.
-_PENDING_CONTEXT_TTL_SECONDS = 600
-_PENDING_CONTEXT: dict[int, tuple[float, str]] = {}
-
-
-def queue_context_injection(chat_id: int, report_text: str) -> None:
-    _PENDING_CONTEXT[chat_id] = (asyncio.get_event_loop().time(), report_text)
-
-
-def pop_context_injection(chat_id: int) -> str | None:
-    entry = _PENDING_CONTEXT.pop(chat_id, None)
-    if entry is None:
-        return None
-    queued_at, report_text = entry
-    if asyncio.get_event_loop().time() - queued_at > _PENDING_CONTEXT_TTL_SECONDS:
-        return None
-    return report_text
 
 SAFE_EXTENSIONS = {
     ".pdf", ".txt", ".md", ".json", ".csv", ".py", ".go", ".js", ".ts",
     ".yaml", ".yml", ".toml", ".log", ".png", ".jpg", ".jpeg", ".webp", ".gif",
 }
 
-
-def get_config() -> BotConfig:
-    if CONFIG is None:
-        raise RuntimeError("Bot 尚未載入設定")
-    return CONFIG
-
-
-def get_schedule_store() -> ScheduleStore:
-    if SCHEDULE_STORE is None:
-        raise RuntimeError("排程資料庫尚未初始化")
-    return SCHEDULE_STORE
-
-
-def get_chat_state_store() -> ChatStateStore:
-    if CHAT_STATE_STORE is None:
-        raise RuntimeError("對話狀態資料庫尚未初始化")
-    return CHAT_STATE_STORE
 
 
 def is_authorized(
@@ -1328,18 +1299,18 @@ def _write_defaults_to_env(payload: dict[str, Any]) -> None:
         env_file.chmod(0o600)
 
     # Dynamically update in-memory CONFIG
-    global CONFIG
-    if CONFIG:
+    if state.CONFIG:
         if "model" in payload and payload["model"] is not None:
-            object.__setattr__(CONFIG, "default_model", payload["model"])
+            object.__setattr__(state.CONFIG, "default_model", payload["model"])
         if "effort" in payload and payload["effort"] is not None:
-            object.__setattr__(CONFIG, "default_effort", payload["effort"])
+            object.__setattr__(state.CONFIG, "default_effort", payload["effort"])
         if "mode" in payload and payload["mode"] is not None:
-            object.__setattr__(CONFIG, "default_mode", payload["mode"])
+            object.__setattr__(state.CONFIG, "default_mode", payload["mode"])
         if "sandbox" in payload and payload["sandbox"] is not None:
-            object.__setattr__(CONFIG, "default_sandbox", bool(payload["sandbox"]))
+            object.__setattr__(state.CONFIG, "default_sandbox", bool(payload["sandbox"]))
         if "verbose" in payload and payload["verbose"] is not None:
-            object.__setattr__(CONFIG, "default_verbose", payload["verbose"])
+            object.__setattr__(state.CONFIG, "default_verbose", payload["verbose"])
+
 
 
 # -----------------------------------------------------------------------------
@@ -2013,9 +1984,8 @@ def build_application(config: BotConfig | None = None) -> Any:
 
 
 def main() -> None:
-    global CONFIG, SCHEDULE_STORE, CHAT_STATE_STORE, INSTANCE_LOCK
     try:
-        CONFIG = load_config()
+        state.CONFIG = load_config()
     except ConfigError as exc:
         print(f"設定錯誤：{exc}", file=sys.stderr)
         raise SystemExit(2) from exc
@@ -2025,22 +1995,22 @@ def main() -> None:
         return
 
     # Instance lock
-    lock_path = CONFIG.state_db_path.parent / "bot.pid"
-    INSTANCE_LOCK = InstanceLock(lock_path)
+    lock_path = state.CONFIG.state_db_path.parent / "bot.pid"
+    state.INSTANCE_LOCK = InstanceLock(lock_path)
     try:
-        INSTANCE_LOCK.acquire()
+        state.INSTANCE_LOCK.acquire()
     except InstanceLockError as exc:
         print(f"啟動失敗：{exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    SCHEDULE_STORE = ScheduleStore(CONFIG.schedule_db_path)
-    CHAT_STATE_STORE = ChatStateStore(CONFIG.state_db_path)
+    state.SCHEDULE_STORE = ScheduleStore(state.CONFIG.schedule_db_path)
+    state.CHAT_STATE_STORE = ChatStateStore(state.CONFIG.state_db_path)
 
-    if CONFIG.permission_mode == "full":
+    if state.CONFIG.permission_mode == "full":
         logger.warning("AGY 目前使用 Full 模式：所有工具權限將自動核准")
-    logger.info("載入設定：workdir=%s, mode=%s", CONFIG.agy_workdir, CONFIG.permission_mode)
+    logger.info("載入設定：workdir=%s, mode=%s", state.CONFIG.agy_workdir, state.CONFIG.permission_mode)
 
-    app = build_application(CONFIG)
+    app = build_application(state.CONFIG)
 
     logger.info("Telegram AGY Bot 正在啟動長輪詢")
     app.run_polling()
@@ -2051,3 +2021,10 @@ if __name__ == "__main__":
 
 
 schedule_callback = global_callback_query_handler
+
+
+def __getattr__(name: str) -> Any:
+    if hasattr(state, name):
+        return getattr(state, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
