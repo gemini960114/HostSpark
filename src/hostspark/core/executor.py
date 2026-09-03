@@ -196,7 +196,7 @@ async def run_agy(
         else:
             args.extend(["--print-timeout", f"{config.timeout_seconds}s"])
 
-        if chat_state.new_project:
+        if chat_state.new_project or chat_id in state.PENDING_PROJECT_INIT:
             args.append("--new-project")
         if chat_state.disable_slash_commands:
             args.append("--disable-slash-commands")
@@ -213,23 +213,30 @@ async def run_agy(
     env = build_safe_subprocess_env(extra_path=config.agy_bin.parent)
     run_cwd = workdir or config.agy_workdir
 
-    if on_chunk or on_event:
-        from hostspark.core.streaming import run_agy_streaming
+    try:
+        if on_chunk or on_event:
+            from hostspark.core.streaming import run_agy_streaming
 
-        return await run_agy_streaming(
+            return await run_agy_streaming(
+                args,
+                cwd=run_cwd,
+                env=env,
+                timeout_seconds=config.timeout_seconds + 10,
+                max_output_bytes=config.max_output_bytes,
+                on_chunk=on_chunk,
+                on_event=on_event,
+            )
+
+        return await run_process(
             args,
             cwd=run_cwd,
             env=env,
             timeout_seconds=config.timeout_seconds + 10,
             max_output_bytes=config.max_output_bytes,
-            on_chunk=on_chunk,
-            on_event=on_event,
         )
-
-    return await run_process(
-        args,
-        cwd=run_cwd,
-        env=env,
-        timeout_seconds=config.timeout_seconds + 10,
-        max_output_bytes=config.max_output_bytes,
-    )
+    finally:
+        # --new-project (if added above because of a pending switch) has now
+        # had its one shot; agy registers the project during its own startup
+        # regardless of how the run itself turns out, so don't keep re-adding
+        # it on every future message in this chat.
+        state.PENDING_PROJECT_INIT.discard(chat_id)

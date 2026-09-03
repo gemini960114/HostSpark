@@ -27,6 +27,13 @@ JOB_QUEUE = JobQueue(maxsize=50)
 INSTANCE_LOCK: InstanceLock | None = None
 agy_lock = asyncio.Lock()
 
+# chat_ids that just switched (via /new) to a project directory agy may not
+# have registered as a project yet. Consumed (removed) by the very next
+# run_agy() call for that chat, which adds --new-project while it's present.
+# Deliberately separate from chat_state.new_project (the sticky, user-facing
+# /new_project on|off toggle) so switching directories never overrides that.
+PENDING_PROJECT_INIT: set[int] = set()
+
 _PENDING_CONTEXT_TTL_SECONDS = 600
 _PENDING_CONTEXT: dict[int, tuple[float, str]] = {}
 

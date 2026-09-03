@@ -91,6 +91,7 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         state.CONFIG = self.previous_config
         state.SCHEDULE_STORE = self.previous_store
         state.CHAT_STATE_STORE = self.previous_chat_store
+        state.PENDING_PROJECT_INIT.clear()
         self.tempdir.cleanup()
 
     async def test_prompt_builder_never_receives_full_permission_flag(self) -> None:
@@ -109,6 +110,33 @@ class BotScheduleIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("--dangerously-skip-permissions", args)
         self.assertIn("--add-dir", args)
         self.assertEqual(mocked.await_args.kwargs["cwd"], isolated)
+
+    async def test_switching_project_dir_makes_next_run_pass_new_project_once(self) -> None:
+        # agy doesn't treat a directory as its active project just because
+        # cwd points at it -- switch_project_dir() must mark the chat so the
+        # very next run_agy() call adds --new-project, and only that one.
+        chat_id = 559
+        state.CHAT_STATE_STORE.update(chat_id, workspace_dir="fresh-project")
+        state.PENDING_PROJECT_INIT.add(chat_id)
+        mocked = AsyncMock(return_value=ProcessResult(0, "ok", ""))
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi", chat_id=chat_id, continue_conversation=False)
+        self.assertIn("--new-project", mocked.await_args.args[0])
+        self.assertNotIn(chat_id, state.PENDING_PROJECT_INIT)
+
+        mocked.reset_mock()
+        with patch("hostspark.core.executor.run_process", mocked):
+            await run_agy("hi again", chat_id=chat_id, continue_conversation=False)
+        self.assertNotIn("--new-project", mocked.await_args.args[0])
+
+    async def test_switch_project_dir_marks_chat_pending(self) -> None:
+        from hostspark.core.workspace import switch_project_dir
+
+        chat_id = 560
+        (state.CONFIG.workspace_root / "another-project").mkdir(parents=True, exist_ok=True)
+        state.PENDING_PROJECT_INIT.discard(chat_id)
+        switch_project_dir(chat_id, "another-project")
+        self.assertIn(chat_id, state.PENDING_PROJECT_INIT)
 
     async def test_executor_uses_selected_workspace_dir_without_extra_add_dir(self) -> None:
         chat_id = 557
