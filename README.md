@@ -126,17 +126,26 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | Command | Description |
 |---|---|
 | `/start` or `/help` | Show a welcome message, current permission status, and a full feature tour |
-| `/menu` | Open the persistent quick-action keyboard |
+| `/menu` | Open the persistent quick-action keyboard in a 3-3-2 layout (covering system monitoring, model tuning, workspace, and task controls) |
 | `/status` | View live VM load, disk, memory, Docker, and job queue status |
 | `/cancel` | Cancel this chat's active or queued task |
+
+> [!TIP]
+> **Persistent Quick-Action Keyboard (3-3-2 Layout)**
+> Type `/menu` anytime to bring up the balanced bottom keyboard:
+> ```text
+> [ /status ]        [ /model ]   [ /effort ]   ← Host monitoring & model tuning
+> [ /session ]       [ /new ]     [ /clear ]    ← Project workspace & conversation resets
+> [  /schedule_list  ]    [   /cancel   ]       ← Scheduled tasks & emergency cancel
+> ```
 
 ### 2. Conversation & sessions
 | Command | Description |
 |---|---|
-| `/new [name]` | Pick or create a named project directory under `AGY_WORKSPACE_ROOT` as this chat's working directory (no name: shows a picker of existing ones); also starts a brand-new conversation |
-| `/clear` | Reset the conversation session only, keeping the current project directory; the next message starts a brand-new session |
+| `/new [name]` | Pick or create a named project directory under `AGY_WORKSPACE_ROOT` as this chat's working directory (no name: pops up an interactive picker); automatically mounts it as an Active Workspace via `--add-dir` and starts a brand-new conversation |
+| `/clear` | Reset the conversation session only, keeping the current project directory; the next message starts a brand-new session (suppresses `--continue`) |
 | `/continue on\|off` | Toggle automatic conversation continuation (`--continue`) |
-| `/session` | View all of this chat's current settings (Model, Effort, Mode, Sandbox, etc.) |
+| `/session` | View all of this chat's current settings (active project directory, Model, Effort, Mode, Sandbox, etc.) |
 | `/learn [text]` | Turn conversation experience and techniques into a reusable skill |
 | `/compact` | Compact the current conversation context while preserving key decisions and state |
 
@@ -196,9 +205,11 @@ Both are **disabled** by default; set `ALLOW_BOT_UPDATE=1` in `.env` to enable t
 Send `/setcommands` to `@BotFather`, pick your bot, and paste the list below — typing `/` in Telegram will then pop up an auto-complete menu with descriptions (this is a curated subset of commonly used commands, not the full list):
 
 ```text
-menu - Open the quick-action keyboard
+menu - Open the quick-action keyboard (3-3-2 layout)
 status - View host resource status and the job queue
-new - Start a brand-new conversation session
+session - View current conversation settings and project directory
+new - Switch or create project directory and start a fresh session
+clear - Reset conversation session (keeps project directory)
 model - View or switch the current AI model
 effort - Set reasoning effort (low/medium/high)
 mode - Set execution mode (plan/accept-edits)

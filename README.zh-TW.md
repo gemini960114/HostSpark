@@ -127,17 +127,26 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | 指令 | 說明 |
 |---|---|
 | `/start` 或 `/help` | 顯示歡迎訊息、當前權限狀態與功能完整導覽 |
-| `/menu` | 開啟常駐快捷功能選單鍵盤 |
+| `/menu` | 開啟 3-3-2 佈局的常駐快捷功能選單鍵盤（涵蓋系統監控、模型調校、專案工作區與任務控制） |
 | `/status` | 檢視 VM 即時負載、磁碟、記憶體、Docker 與任務佇列狀態 |
 | `/cancel` | 取消目前 Chat 中正在執行或佇列等待的任務 |
+
+> [!TIP]
+> **常駐快捷鍵盤（3-3-2 佈局）**
+> 輸入 `/menu` 即可隨時喚出下方快捷鍵盤，依功能與對稱性精心編排：
+> ```text
+> [ /status ]        [ /model ]   [ /effort ]   ← 系統監控與模型調校
+> [ /session ]       [ /new ]     [ /clear ]    ← 專案工作區與對話重置
+> [  /schedule_list  ]    [   /cancel   ]       ← 定時排程與緊急取消
+> ```
 
 ### 2. 對話與工作階段
 | 指令 | 說明 |
 |---|---|
-| `/new [名稱]` | 選擇或建立 `AGY_WORKSPACE_ROOT` 底下有名字的專案目錄當作這個 Chat 的工作目錄（不帶名稱：列出現有目錄供選擇），並開啟全新對話 |
-| `/clear` | 只重置對話工作階段，不動目前的專案目錄；下一次提問將開啟全新 Session |
+| `/new [名稱]` | 選擇或建立 `AGY_WORKSPACE_ROOT` 底下的專案目錄當作工作區（不帶名稱：彈出按鈕清單供選擇），自動以 `--add-dir` 掛載為 Active Workspace 並開啟全新對話 |
+| `/clear` | 只重置對話工作階段，保留當前專案目錄；下一則訊息將開啟全新 Session（不延續舊對話） |
 | `/continue on\|off` | 切換是否自動延續對話（`--continue`） |
-| `/session` | 檢視目前 Chat 的所有設定（Model、Effort、Mode、Sandbox 等） |
+| `/session` | 檢視目前 Chat 的所有設定（所在專案目錄、Model、Effort、Mode、Sandbox 等） |
 | `/learn [內容]` | 整理對話經驗與技能為可重複使用的 Skill |
 | `/compact` | 壓縮目前對話上下文，保留核心決策與狀態 |
 
@@ -197,10 +206,11 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 向 `@BotFather` 傳送 `/setcommands`，選擇你的 Bot，貼上以下清單，之後在 Telegram 輸入 `/` 就會跳出中文說明的自動補齊選單（這是精選常用子集，不含全部指令）：
 
 ```text
-menu - 開啟快捷功能操作鍵盤
+menu - 開啟快捷功能操作鍵盤 (3-3-2 佈局)
 status - 檢視主機資源狀態與任務佇列
-new - 開啟全新對話 Session
-session - 檢視目前對話各項設定明細
+session - 檢視目前對話設定與專案目錄
+new - 切換或建立專案目錄並開啟全新對話
+clear - 重置對話工作階段（保留當前專案目錄）
 model - 查看或切換當前 AI 模型
 effort - 設定推理深度 (low/medium/high)
 mode - 設定執行模式 (plan/accept-edits)
