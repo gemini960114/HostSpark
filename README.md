@@ -29,7 +29,7 @@ Ubuntu VM (filesystem / Docker containers / system services / hardware resources
 - **Multi-user & chat allowlist authorization**: supports `ALLOWED_USER_IDS` and `ALLOWED_CHAT_IDS`, plus a `TELEGRAM_PRIVATE_ONLY` switch to restrict the bot to private chats.
 - **Independent per-chat state**: each chat/user has its own Model, Effort, Mode, Sandbox, Verbose, and Workspace settings that never interfere with each other.
 - **Live stream feedback**: reports thinking/tool-execution progress in real time, with a configurable end-of-run display mode (`full` / `compact` / `delete`).
-- **Conversation session management**: `/new` / `/clear` start a fresh session; every chat gets its own dedicated AGY working directory so conversations never bleed into each other.
+- **Conversation session management**: `/new [name]` picks or creates a named project directory (confined under `AGY_WORKSPACE_ROOT`) as the chat's working directory and starts a fresh session; `/clear` resets just the conversation. Chats that never use `/new` keep their own dedicated, anonymous AGY working directory so conversations never bleed into each other.
 - **Multimodal attachments & file interaction**: upload images or documents (`.py`, `.log`, `.pdf`, `.json`, etc.) directly for AGY to analyze; images and reports AGY produces are sent back automatically via Telegram.
 - **Real-time quota & usage lookups**: `/usage` / `/quota` / `/credits` provide structured progress indicators (🟢/🟡/🔴/⭐/⚪ visual tags with pace-vs-time-elapsed analysis); `/context` shows context usage details.
 - **Secure CLI passthrough with two-phase confirmation**: `/agy [ARGS]` supports native CLI flags (interactive `-i` deadlocks are hard-blocked; dangerous commands trigger a confirmation step automatically).
@@ -82,8 +82,13 @@ AGY_WORKDIR=
 # Comma-separated list of models allowed for switching. If left blank, falls back to a
 # built-in default list -- but that list isn't guaranteed to match what your agy
 # account can actually use. Run `agy models` on the VM first to get the real list,
-# then paste it in here.
-AGY_ALLOWED_MODELS="gemini-3.7-flash-high,gemini-3.6-flash-high,claude-sonnet-4-6"
+# then paste it in here. Base names without a -high/-medium/-low suffix (e.g.
+# gemini-3.8-flash) are recombined with AGY_EFFORT / the /effort picker into the
+# real --model value agy expects; suffixed names are used as-is.
+AGY_ALLOWED_MODELS="gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash"
+
+# Default reasoning effort for new conversations (low|medium|high, default high)
+AGY_EFFORT=medium
 
 # Streaming progress display mode (full=expanded, compact=one line, delete=removed on completion, default compact)
 AGY_PROGRESS_MODE=compact
@@ -102,7 +107,8 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 # AGY_RULE_PROMPT=          # Custom behavior rules prepended to every AGY call (a prompt, not a security control)
 # AGY_BOT_NAME="HostSpark"  # The name the bot refers to itself as
 # AGY_WAITING_MESSAGE=      # The "please wait" message shown while a task runs
-# AGY_WORKSPACE_ROOT=       # Root directory for attachment storage and path containment; defaults to AGY_WORKDIR
+# AGY_WORKSPACE_ROOT=       # Root directory for attachment storage and path containment; defaults to AGY_WORKDIR. Also the parent directory /new's project-directory picker/creator is confined to
+# AGY_DEFAULT_PROJECT_DIR=initial  # Name of the project directory pre-created under AGY_WORKSPACE_ROOT so /new's picker isn't empty on a fresh install
 # AGY_CONVERSATION_DB_PATH= # Reserved for a future feature; no command reads it currently
 # AGY_TIMEOUT_SECONDS=600         # Per-run AGY timeout in seconds (10-3600)
 # AGY_MAX_OUTPUT_BYTES=1000000    # Max bytes retained for each of stdout/stderr
@@ -127,7 +133,8 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 ### 2. Conversation & sessions
 | Command | Description |
 |---|---|
-| `/new` or `/clear` | Reset the conversation session; the next message starts a brand-new session |
+| `/new [name]` | Pick or create a named project directory under `AGY_WORKSPACE_ROOT` as this chat's working directory (no name: shows a picker of existing ones); also starts a brand-new conversation |
+| `/clear` | Reset the conversation session only, keeping the current project directory; the next message starts a brand-new session |
 | `/continue on\|off` | Toggle automatic conversation continuation (`--continue`) |
 | `/session` | View all of this chat's current settings (Model, Effort, Mode, Sandbox, etc.) |
 | `/learn [text]` | Turn conversation experience and techniques into a reusable skill |

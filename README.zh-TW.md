@@ -31,7 +31,7 @@ Ubuntu VM（檔案系統／Docker 容器／系統服務／硬體資源）
 - **多使用者與 Chat 白名單授權**：支援 `ALLOWED_USER_IDS` 與 `ALLOWED_CHAT_IDS`，支援私訊限制開關 `TELEGRAM_PRIVATE_ONLY`。
 - **Per-Chat 獨立狀態管理**：每個 Chat / 使用者各自擁有獨立的 Model、Effort、Mode、Sandbox、Verbose 與 Workspace 設定，互不干擾。
 - **即時串流輸出（Live Stream Feedback）**：即時回報思考與工具執行中進度，並支援可設定的進度結束模式（`full` / `compact` / `delete`）。
-- **對話工作階段管理**：`/new` / `/clear` 開啟全新 Session；每個 Chat 擁有專屬的 AGY 工作目錄，彼此對話內容互不干擾。
+- **對話工作階段管理**：`/new [名稱]` 選擇或建立一個位於 `AGY_WORKSPACE_ROOT` 底下、有名字的專案目錄當作這個 Chat 的工作目錄，並開啟全新 Session；`/clear` 只重置對話。沒用過 `/new` 的 Chat 仍維持各自專屬、匿名的 AGY 工作目錄，彼此對話內容互不干擾。
 - **多模態附件與檔案互動**：支援上傳圖片、文件（`.py`, `.log`, `.pdf`, `.json` 等）直接交由 AGY 分析；AGY 產生的圖片與報表自動透過 Telegram 傳回。
 - **配額與使用量即時查詢**：`/usage` / `/quota` / `/credits` 提供結構化進度指標（🟢/🟡/🔴/⭐/⚪ 視覺化標籤與進度落差分析）；`/context` 檢視上下文明細。
 - **安全 CLI Passthrough 與兩階段確認**：`/agy [ARGS]` 支援原生 CLI 旗標（強制阻擋 `-i` 互動死鎖，危險指令自動觸發確認）。
@@ -83,8 +83,13 @@ AGY_WORKDIR=
 
 # 允許切換的模型清單（逗號分隔）。留空時退回程式內建的預設清單，
 # 但那份清單不保證跟你的 agy 帳號實際可用的模型一致——
-# 建議先在 VM 上執行 `agy models` 取得真實清單再填入這裡。
-AGY_ALLOWED_MODELS="gemini-3.7-flash-high,gemini-3.6-flash-high,claude-sonnet-4-6"
+# 建議先在 VM 上執行 `agy models` 取得真實清單再填入這裡。不帶 -high/-medium/-low
+# 後綴的基底名稱（例如 gemini-3.8-flash）會跟 AGY_EFFORT／/effort 選單組合成
+# agy 認得的完整模型名稱；已帶後綴的名稱則直接照樣使用。
+AGY_ALLOWED_MODELS="gemini-3.8-flash,gemini-3.7-flash,claude-sonnet-4-6"
+
+# 新對話預設的推理深度（low|medium|high，預設 high）
+AGY_EFFORT=medium
 
 # 串流進度顯示模式（full=完整, compact=單行, delete=完成後刪除，預設 compact）
 AGY_PROGRESS_MODE=compact
@@ -103,7 +108,8 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 # AGY_RULE_PROMPT=          # 每次執行前附加給 AGY 的自訂行為規則（非安全機制，僅為提示詞）
 # AGY_BOT_NAME="HostSpark"  # Bot 自稱名稱
 # AGY_WAITING_MESSAGE=      # 執行中顯示的等待訊息
-# AGY_WORKSPACE_ROOT=       # 附件儲存與路徑隔離的根目錄，預設同 AGY_WORKDIR
+# AGY_WORKSPACE_ROOT=       # 附件儲存與路徑隔離的根目錄，預設同 AGY_WORKDIR；也是 /new 專案目錄選擇/建立功能的母目錄
+# AGY_DEFAULT_PROJECT_DIR=initial  # 在 AGY_WORKSPACE_ROOT 底下預先建立的預設專案子目錄名稱，避免全新安裝時 /new 選單是空的
 # AGY_CONVERSATION_DB_PATH= # 保留給未來功能使用，目前無指令會讀取
 # AGY_TIMEOUT_SECONDS=600         # 單次 AGY 執行逾時秒數（10~3600）
 # AGY_MAX_OUTPUT_BYTES=1000000    # stdout/stderr 各自保留上限
@@ -128,7 +134,8 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 ### 2. 對話與工作階段
 | 指令 | 說明 |
 |---|---|
-| `/new` 或 `/clear` | 重置對話工作階段，下一次提問將開啟全新 Session |
+| `/new [名稱]` | 選擇或建立 `AGY_WORKSPACE_ROOT` 底下有名字的專案目錄當作這個 Chat 的工作目錄（不帶名稱：列出現有目錄供選擇），並開啟全新對話 |
+| `/clear` | 只重置對話工作階段，不動目前的專案目錄；下一次提問將開啟全新 Session |
 | `/continue on\|off` | 切換是否自動延續對話（`--continue`） |
 | `/session` | 檢視目前 Chat 的所有設定（Model、Effort、Mode、Sandbox 等） |
 | `/learn [內容]` | 整理對話經驗與技能為可重複使用的 Skill |
