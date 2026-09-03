@@ -42,3 +42,6 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local AI agent skills/config -- machine-specific, not part of the project
+.agents/
