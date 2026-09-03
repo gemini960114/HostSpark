@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def get_reply_keyboard() -> ReplyKeyboardMarkup:
     keyboard = [
-        [KeyboardButton("/status"), KeyboardButton("/model"), KeyboardButton("/mode")],
+        [KeyboardButton("/status"), KeyboardButton("/model"), KeyboardButton("/effort")],
         [KeyboardButton("/schedule_list"), KeyboardButton("/new"), KeyboardButton("/cancel")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)

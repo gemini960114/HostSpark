@@ -360,6 +360,12 @@ async def global_callback_query_handler(update: Update, context: ContextTypes.DE
         await query.edit_message_text(f"✅ 已切換模型為：`{model_name}`")
         return
 
+    if data.startswith("effort_sel:"):
+        level = data.split(":", 1)[1]
+        state.get_chat_state_store().update(_get_chat_id(update), effort=level)
+        await query.edit_message_text(f"✅ 已設定推理深度 (effort) 為：`{level}`")
+        return
+
     if data.startswith("setdefault_confirm:"):
         token = data.split(":", 1)[1]
         action = state.get_pending_actions().pop(token, user_id=user_id)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import hostspark.state as state
-from hostspark.core.prompt import compose_agy_prompt, model_has_baked_in_effort
+from hostspark.core.prompt import compose_agy_prompt, resolve_model_and_effort_args
 from hostspark.core.sanitizer import build_safe_subprocess_env, redact_sensitive
 
 
@@ -159,10 +159,7 @@ async def run_agy(
         elif continue_conversation and chat_state.continue_enabled:
             args.append("--continue")
 
-        if chat_state.model:
-            args.extend(["--model", chat_state.model])
-        if chat_state.effort and not model_has_baked_in_effort(chat_state.model):
-            args.extend(["--effort", chat_state.effort])
+        args.extend(resolve_model_and_effort_args(chat_state.model, chat_state.effort))
 
         if config.permission_mode == "full" and chat_state.mode == "accept-edits":
             args.extend(["--mode", "accept-edits"])

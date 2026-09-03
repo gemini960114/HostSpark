@@ -7,6 +7,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 import hostspark.state as state
+from hostspark.core.prompt import strip_effort_suffix
 from hostspark.telegram.auth import _get_chat_id, reject_unauthorized
 
 logger = logging.getLogger(__name__)
@@ -27,32 +28,58 @@ async def model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     config = state.get_config()
     models = list(config.allowed_models)
     if not models:
-        models = [
-            "gemini-3.7-flash-high",
-            "gemini-3.6-flash-high",
-            "gemini-3.1-pro-high",
-            "claude-sonnet-4-6",
-            "claude-opus-4-6-thinking",
-            "gpt-oss-120b-medium",
-        ]
+        models = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
+
+    current = store.get_or_create(
+        chat_id,
+        defaults={"model": config.default_model, "effort": config.default_effort},
+    ).model or config.default_model
+    # 舊資料可能還存著帶 effort 後綴的完整模型名（例如 gemini-3.8-flash-medium），
+    # 先去掉後綴再比對，才能正確標出目前對應的基底模型。
+    current_family = strip_effort_suffix(current)
 
     keyboard = [
-        [InlineKeyboardButton(f"🤖 {m}", callback_data=f"model_sel:{m}")]
+        [InlineKeyboardButton(f"{'✅ ' if m == current_family else '🤖 '}{m}", callback_data=f"model_sel:{m}")]
         for m in models
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("請選擇欲使用的模型：", reply_markup=reply_markup)
+    await update.message.reply_text(
+        f"目前模型：`{current_family}`\n請選擇欲使用的模型：", reply_markup=reply_markup
+    )
+
+
+_EFFORT_LABELS = {"low": "🔵 Low", "medium": "🟡 Medium", "high": "🔴 High"}
 
 
 async def effort_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await reject_unauthorized(update):
         return
-    if not context.args or context.args[0].lower() not in {"low", "medium", "high"}:
-        await update.message.reply_text("用法：`/effort low|medium|high`")
+    chat_id = _get_chat_id(update)
+
+    if context.args:
+        if context.args[0].lower() not in {"low", "medium", "high"}:
+            await update.message.reply_text("用法：`/effort low|medium|high`")
+            return
+        val = context.args[0].lower()
+        state.get_chat_state_store().update(chat_id, effort=val)
+        await update.message.reply_text(f"✅ 已設定推理深度 (effort) 為：`{val}`")
         return
-    val = context.args[0].lower()
-    state.get_chat_state_store().update(_get_chat_id(update), effort=val)
-    await update.message.reply_text(f"✅ 已設定推理深度 (effort) 為：`{val}`")
+
+    config = state.get_config()
+    current = state.get_chat_state_store().get_or_create(
+        chat_id,
+        defaults={"model": config.default_model, "effort": config.default_effort},
+    ).effort
+
+    keyboard = [[
+        InlineKeyboardButton(
+            f"{'✅ ' if lvl == current else ''}{_EFFORT_LABELS[lvl]}",
+            callback_data=f"effort_sel:{lvl}",
+        )
+        for lvl in ("low", "medium", "high")
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(f"目前推理深度 (effort)：`{current}`\n請選擇：", reply_markup=reply_markup)
 
 
 async def mode_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

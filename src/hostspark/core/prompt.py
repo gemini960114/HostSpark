@@ -35,6 +35,54 @@ def model_has_baked_in_effort(model: str | None) -> bool:
     return bool(_MODEL_EFFORT_SUFFIX_RE.search(model.strip()))
 
 
+def strip_effort_suffix(model: str | None) -> str | None:
+    """去掉模型名稱尾端內建的 effort 後綴（-high/-medium/-low）。
+
+    用來把舊資料正規化成現在的基底名稱，例如切換到新版「model 選單只顯示
+    3 個基底名稱」之前，某個 chat 可能還存著 `gemini-3.8-flash-medium`
+    這種帶後綴的舊值；要判斷它「現在對應哪個基底模型按鈕」時，
+    先用這個函式去掉後綴再比對，才不會因為字串不完全相等而找不到打勾對象。
+    """
+    if not model:
+        return model
+    return _MODEL_EFFORT_SUFFIX_RE.sub("", model.strip())
+
+
+# 這幾個「基底名稱」在 AGY 的模型目錄裡，實際上只以 `<base>-<effort>`
+# （例如 gemini-3.8-flash-medium）註冊，沒有不帶後綴的獨立模型可選。
+# UI 上把 model 跟 effort 拆成兩個各自獨立的選項比較好選，但真正呼叫
+# agy 時，這幾個基底名稱必須把 effort 併回模型字串裡才是有效的 --model 值。
+EFFORT_VARIANT_MODEL_BASES = frozenset({
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+})
+
+
+def resolve_model_and_effort_args(model: str | None, effort: str | None) -> list[str]:
+    """組出要傳給 agy 的 `--model` / `--effort` 參數。
+
+    - 若 model 是 EFFORT_VARIANT_MODEL_BASES 裡的基底名稱且有設定 effort，
+      直接組成 `--model <base>-<effort>`（例如 gemini-3.8-flash + medium
+      → `--model gemini-3.8-flash-medium`），不額外帶 `--effort`。
+    - 若 model 本身已內建 effort 後綴（model_has_baked_in_effort），
+      只送 `--model`，不送 `--effort`，避免衝突。
+    - 其餘情況維持原本行為：model 跟 effort 各自獨立帶出。
+    """
+    args: list[str] = []
+    if model:
+        if effort and model in EFFORT_VARIANT_MODEL_BASES:
+            args.extend(["--model", f"{model}-{effort}"])
+            return args
+        args.extend(["--model", model])
+        if effort and not model_has_baked_in_effort(model):
+            args.extend(["--effort", effort])
+        return args
+    if effort:
+        args.extend(["--effort", effort])
+    return args
+
+
 def _cn_num_to_int(token: str) -> int | None:
     """把「五」、「十五」、「二十」這類中文數字（或阿拉伯數字字串）轉成 int，失敗回傳 None。"""
     token = token.strip()
