@@ -106,3 +106,73 @@ def format_result_message(result: ProcessResult, permission_mode: str) -> str:
     if result.stderr:
         return f"⚠️ AGY 沒有標準輸出：\n\n{result.stderr}{truncation_note}"
     return "✅ 執行完成。"
+
+import io
+import logging
+from datetime import datetime
+from telegram.constants import ParseMode
+import hostspark.state as state
+
+logger = logging.getLogger(__name__)
+
+
+def result_message(result: ProcessResult) -> str:
+    return format_result_message(result, state.get_config().permission_mode)
+
+
+async def send_formatted_response(message, text: str) -> None:
+    if len(text) > 7000:
+        try:
+            bio = io.BytesIO(text.encode("utf-8"))
+            bio.name = f"response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            await message.reply_document(
+                document=bio,
+                caption="📄 回覆內容過長，已將完整內容儲存為 Markdown 檔案傳送。",
+            )
+            return
+        except Exception as exc:
+            logger.warning("以檔案發送超長訊息失敗，退回分段文字發送：%s", exc)
+
+    for chunk in split_markdown_into_chunks(text, max_chunk_size=3500):
+        try:
+            await message.reply_text(
+                md_to_telegram_html(chunk),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except Exception as exc:
+            logger.warning("HTML 格式傳送失敗，改用純文字：%s", exc)
+            try:
+                await message.reply_text(chunk)
+            except Exception:
+                logger.exception("Telegram 訊息傳送失敗")
+
+
+async def send_formatted_to_chat(bot, chat_id: int, text: str) -> None:
+    if len(text) > 7000:
+        try:
+            bio = io.BytesIO(text.encode("utf-8"))
+            bio.name = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+            await bot.send_document(
+                chat_id=chat_id,
+                document=bio,
+                caption="📄 排程執行回覆過長，已轉為 Markdown 檔案傳送。",
+            )
+            return
+        except Exception as exc:
+            logger.warning("排程超長訊息檔案傳送失敗，改用文字：%s", exc)
+
+    for chunk in split_markdown_into_chunks(text, max_chunk_size=3500):
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=md_to_telegram_html(chunk),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except Exception as exc:
+            logger.warning("HTML 格式傳送失敗，改用純文字：%s", exc)
+            try:
+                await bot.send_message(chat_id=chat_id, text=chunk)
+            except Exception:
+                logger.exception("Telegram 訊息傳送失敗")
