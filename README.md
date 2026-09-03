@@ -213,6 +213,8 @@ help - Show the full feature guide
 
 ## 🚀 Quick Install & Upgrade
 
+> Having an AI agent (Claude, etc.) perform this install on your behalf? Point it at [INSTALL_BY_AI.md](INSTALL_BY_AI.md) instead of this section.
+
 ```bash
 git clone https://github.com/gemini960114/HostSpark.git
 cd HostSpark

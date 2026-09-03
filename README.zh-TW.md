@@ -215,6 +215,8 @@ help - 顯示完整功能操作說明
 
 ## 🚀 快速安裝與升級
 
+> 想請 AI agent（Claude 等）代為安裝？請改給它讀 [INSTALL_BY_AI.zh-TW.md](INSTALL_BY_AI.zh-TW.md)，不要用這一節。
+
 ```bash
 git clone https://github.com/gemini960114/HostSpark.git
 cd HostSpark
