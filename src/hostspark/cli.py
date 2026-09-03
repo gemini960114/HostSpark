@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from dotenv import load_dotenv
+
 import hostspark.state as state
 from hostspark.config import ConfigError, load_config
 from hostspark.runtime.instance_lock import InstanceLock, InstanceLockError
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    load_dotenv(state.ENV_PATH)
     try:
         state.CONFIG = load_config()
     except ConfigError as exc:
