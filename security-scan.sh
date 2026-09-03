@@ -110,13 +110,13 @@ run_step "pip-audit (known dependency vulnerabilities)" "pip-audit.txt" \
 
 run_step "bandit (Python security anti-patterns)" "bandit.txt" \
     "$TOOLS_VENV/bin/bandit" -r "$SCRIPT_DIR" \
-    --exclude "$SCRIPT_DIR/venv,$SCRIPT_DIR/tests,$SCRIPT_DIR/.security-tools-venv" \
+    --exclude "$SCRIPT_DIR/venv,$SCRIPT_DIR/tests,$SCRIPT_DIR/.security-tools-venv,$SCRIPT_DIR/.agents" \
     -ll
 
 run_step "semgrep (OWASP Top Ten + Python rulesets)" "semgrep.txt" \
     "$TOOLS_VENV/bin/semgrep" \
     --config p/python --config p/owasp-top-ten \
-    --exclude venv --exclude tests --exclude .security-tools-venv \
+    --exclude venv --exclude tests --exclude .security-tools-venv --exclude .agents \
     "$SCRIPT_DIR"
 
 if command -v gitleaks >/dev/null 2>&1; then
