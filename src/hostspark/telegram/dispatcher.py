@@ -230,6 +230,7 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
                 await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
 
     async def keep_typing() -> None:
+        nonlocal last_edit_time
         while True:
             with suppress(Exception):
                 await application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
