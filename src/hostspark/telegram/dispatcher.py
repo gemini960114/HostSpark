@@ -185,6 +185,36 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
     )
     last_edit_time = 0.0
     accumulated_draft = ""
+    job_start_time = asyncio.get_event_loop().time()
+
+    def _format_status_text(draft_text: str, elapsed_sec: int) -> str:
+        cancel_hint = "💡 <i>若需中斷可點擊 /cancel</i>"
+        if elapsed_sec >= 30:
+            cancel_hint = "⚠️ <i>底層指令執行時間較長，若不需等待可隨時點擊 /cancel 中斷</i>"
+
+        if chat_state.verbose == "compact":
+            lines = [l.strip() for l in draft_text.splitlines() if l.strip()]
+            last_line = lines[-1] if lines else ""
+            snippet = last_line[:200]
+            if snippet:
+                return (
+                    f"⏳ <b>正在執行：</b> <code>{html.escape(snippet)}</code>\n"
+                    f"⏱️ <i>已耗時 {elapsed_sec}s</i>\n\n"
+                    f"{cancel_hint}"
+                )
+        elif chat_state.verbose != "silent" and draft_text:
+            snippet = draft_text[-800:].strip()
+            if snippet:
+                return (
+                    f"⏳ <b>正在思考與執行：</b>（已耗時 {elapsed_sec}s）\n\n"
+                    f"<code>{html.escape(snippet)}</code>\n\n"
+                    f"{cancel_hint}"
+                )
+
+        return (
+            f"⏳ <b>{html.escape(config.bot_name)} 正在思考與執行中...</b>（已耗時 {elapsed_sec}s）\n\n"
+            f"{cancel_hint}"
+        )
 
     async def on_chunk_cb(draft_text: str) -> None:
         nonlocal last_edit_time, accumulated_draft
@@ -194,27 +224,26 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
         now_ts = asyncio.get_event_loop().time()
         if now_ts - last_edit_time > 1.8:
             last_edit_time = now_ts
-            if chat_state.verbose == "compact":
-                lines = [l.strip() for l in draft_text.splitlines() if l.strip()]
-                last_line = lines[-1] if lines else ""
-                snippet = last_line[:200]
-                if snippet:
-                    with suppress(Exception):
-                        await status_msg.edit_text(f"⏳ <b>正在執行：</b> <code>{html.escape(snippet)}</code>", parse_mode=ParseMode.HTML)
-            else:
-                snippet = draft_text[-800:].strip()
-                if snippet:
-                    with suppress(Exception):
-                        await status_msg.edit_text(f"⏳ <b>正在思考與執行：</b>\n\n<code>{html.escape(snippet)}</code>", parse_mode=ParseMode.HTML)
+            elapsed_sec = int(now_ts - job_start_time)
+            text = _format_status_text(draft_text, elapsed_sec)
+            with suppress(Exception):
+                await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
 
     async def keep_typing() -> None:
         while True:
             with suppress(Exception):
                 await application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             await asyncio.sleep(4)
+            if status_msg is not None:
+                now_ts = asyncio.get_event_loop().time()
+                if now_ts - last_edit_time >= 3.5:
+                    last_edit_time = now_ts
+                    elapsed_sec = int(now_ts - job_start_time)
+                    text = _format_status_text(accumulated_draft, elapsed_sec)
+                    with suppress(Exception):
+                        await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
 
     typing_task = asyncio.create_task(keep_typing())
-    job_start_time = asyncio.get_event_loop().time()
     try:
         async with state.agy_lock:
             result = await executor.run_agy(
