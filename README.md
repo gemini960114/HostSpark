@@ -28,7 +28,7 @@ Ubuntu VM (filesystem / Docker containers / system services / hardware resources
 
 - **Multi-user & chat allowlist authorization**: supports `ALLOWED_USER_IDS` and `ALLOWED_CHAT_IDS`, plus a `TELEGRAM_PRIVATE_ONLY` switch to restrict the bot to private chats.
 - **Independent per-chat state**: each chat/user has its own Model, Effort, Mode, Sandbox, Verbose, and Workspace settings that never interfere with each other.
-- **Live stream feedback**: reports thinking/tool-execution progress in real time, with a configurable end-of-run display mode (`full` / `compact` / `delete`).
+- **Live stream feedback & active heartbeat timer**: reports thinking/tool-execution progress in real time with an active elapsed-seconds heartbeat timer (eliminating frozen screens even during silent or blocking subcommands), clickable `/cancel` self-rescue hints, stall warning alerts (>30s), and configurable end-of-run card modes (`full` / `compact` / `delete`).
 - **Conversation session management**: `/new [name]` picks or creates a named project directory (confined under `AGY_WORKSPACE_ROOT`) as the chat's working directory and starts a fresh session; `/clear` resets just the conversation. Chats that never use `/new` keep their own dedicated, anonymous AGY working directory so conversations never bleed into each other.
 - **Multimodal attachments & file interaction**: upload images or documents (`.py`, `.log`, `.pdf`, `.json`, etc.) directly for AGY to analyze; images and reports AGY produces are sent back automatically via Telegram.
 - **Real-time quota & usage lookups**: `/usage` / `/quota` / `/credits` provide structured progress indicators (🟢/🟡/🔴/⭐/⚪ visual tags with pace-vs-time-elapsed analysis); `/context` shows context usage details.
@@ -113,7 +113,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 # AGY_WORKSPACE_ROOT=       # Root directory for attachment storage and path containment; defaults to AGY_WORKDIR. Also the parent directory /new's project-directory picker/creator is confined to
 # AGY_DEFAULT_PROJECT_DIR=initial  # Name of the project directory pre-created under AGY_WORKSPACE_ROOT so /new's picker isn't empty on a fresh install
 # AGY_CONVERSATION_DB_PATH= # Reserved for a future feature; no command reads it currently
-# AGY_TIMEOUT_SECONDS=600         # Per-run AGY timeout in seconds (10-3600)
+# AGY_TIMEOUT_SECONDS=180         # Per-run AGY timeout in seconds (10-3600, default 180)
 # AGY_MAX_OUTPUT_BYTES=1000000    # Max bytes retained for each of stdout/stderr
 # AGY_SCHEDULE_DB_PATH=           # Path to the scheduler's SQLite database
 # AGY_STATE_DB_PATH=              # Path to the per-chat state SQLite database
@@ -131,7 +131,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | `/start` or `/help` | Show a welcome message, current permission status, and a full feature tour |
 | `/menu` | Open the persistent quick-action keyboard in a 3-3-2 layout (covering system monitoring, model tuning, workspace, and task controls) |
 | `/status` | View live VM load, disk, memory, Docker, and job queue status |
-| `/cancel` | Cancel this chat's active or queued task |
+| `/cancel` | Cancel this chat's active or queued task immediately (also clickable directly from the live progress card) |
 
 > [!TIP]
 > **Persistent Quick-Action Keyboard (3-3-2 Layout)**

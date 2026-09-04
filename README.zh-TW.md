@@ -30,7 +30,7 @@ Ubuntu VM（檔案系統／Docker 容器／系統服務／硬體資源）
 
 - **多使用者與 Chat 白名單授權**：支援 `ALLOWED_USER_IDS` 與 `ALLOWED_CHAT_IDS`，支援私訊限制開關 `TELEGRAM_PRIVATE_ONLY`。
 - **Per-Chat 獨立狀態管理**：每個 Chat / 使用者各自擁有獨立的 Model、Effort、Mode、Sandbox、Verbose 與 Workspace 設定，互不干擾。
-- **即時串流輸出（Live Stream Feedback）**：即時回報思考與工具執行中進度，並支援可設定的進度結束模式（`full` / `compact` / `delete`）。
+- **即時串流輸出與動態跳秒心跳計時器**：即時回報思考與工具執行中進度；配備背景跳秒心跳計時器（即使底層指令阻塞無輸出也絕不畫面凍結）、狀態卡片內建快捷 `/cancel` 自救點擊、長時間未回應預警（>30s），並支援自訂結案收尾模式（`full` / `compact` / `delete`）。
 - **對話工作階段管理**：`/new [名稱]` 選擇或建立一個位於 `AGY_WORKSPACE_ROOT` 底下、有名字的專案目錄當作這個 Chat 的工作目錄，並開啟全新 Session；`/clear` 只重置對話。沒用過 `/new` 的 Chat 仍維持各自專屬、匿名的 AGY 工作目錄，彼此對話內容互不干擾。
 - **多模態附件與檔案互動**：支援上傳圖片、文件（`.py`, `.log`, `.pdf`, `.json` 等）直接交由 AGY 分析；AGY 產生的圖片與報表自動透過 Telegram 傳回。
 - **配額與使用量即時查詢**：`/usage` / `/quota` / `/credits` 提供結構化進度指標（🟢/🟡/🔴/⭐/⚪ 視覺化標籤與進度落差分析）；`/context` 檢視上下文明細。
@@ -114,7 +114,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 # AGY_WORKSPACE_ROOT=       # 附件儲存與路徑隔離的根目錄，預設同 AGY_WORKDIR；也是 /new 專案目錄選擇/建立功能的母目錄
 # AGY_DEFAULT_PROJECT_DIR=initial  # 在 AGY_WORKSPACE_ROOT 底下預先建立的預設專案子目錄名稱，避免全新安裝時 /new 選單是空的
 # AGY_CONVERSATION_DB_PATH= # 保留給未來功能使用，目前無指令會讀取
-# AGY_TIMEOUT_SECONDS=600         # 單次 AGY 執行逾時秒數（10~3600）
+# AGY_TIMEOUT_SECONDS=180         # 單次 AGY 執行逾時秒數（10~3600，預設 180）
 # AGY_MAX_OUTPUT_BYTES=1000000    # stdout/stderr 各自保留上限
 # AGY_SCHEDULE_DB_PATH=           # 排程 SQLite 路徑
 # AGY_STATE_DB_PATH=              # Per-chat 狀態 SQLite 路徑
@@ -132,7 +132,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | `/start` 或 `/help` | 顯示歡迎訊息、當前權限狀態與功能完整導覽 |
 | `/menu` | 開啟 3-3-2 佈局的常駐快捷功能選單鍵盤（涵蓋系統監控、模型調校、專案工作區與任務控制） |
 | `/status` | 檢視 VM 即時負載、磁碟、記憶體、Docker 與任務佇列狀態 |
-| `/cancel` | 取消目前 Chat 中正在執行或佇列等待的任務 |
+| `/cancel` | 即刻取消目前 Chat 中正在執行或佇列等待的任務（亦可直接在即時進度卡片上點擊取消） |
 
 > [!TIP]
 > **常駐快捷鍵盤（3-3-2 佈局）**
