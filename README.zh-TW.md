@@ -91,7 +91,10 @@ AGY_ALLOWED_MODELS="gemini-3.8-flash,gemini-3.7-flash,claude-sonnet-4-6"
 # 新對話預設的推理深度（low|medium|high，預設 high）
 AGY_EFFORT=medium
 
-# 串流進度顯示模式（full=完整, compact=單行, delete=完成後刪除，預設 compact）
+# 執行時思考與指令進度詳細度（detailed=完整展開多行, compact=單行摘要, silent=靜默不刷新，預設 detailed）
+AGY_VERBOSE=detailed
+
+# 任務完成後狀態卡片的收尾模式（compact=顯示打勾完成, delete=執行完刪除思考卡片, full=保留耗時與日誌統計，預設 compact）
 AGY_PROGRESS_MODE=compact
 
 # 新訊息進入時自動中斷前次任務並合併 Prompt（預設 1）
@@ -105,7 +108,7 @@ ALLOW_BOT_UPDATE=0
 AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
 # 以下皆為可選，留空使用預設值：
-# AGY_RULE_PROMPT=          # 每次執行前附加給 AGY 的自訂行為規則（非安全機制，僅為提示詞）
+# AGY_RULE_PROMPT=          # 每次執行前附加給 AGY 的自訂行為規則（支援約束常駐服務 nohup 背景化等）
 # AGY_BOT_NAME="HostSpark"  # Bot 自稱名稱
 # AGY_WAITING_MESSAGE=      # 執行中顯示的等待訊息
 # AGY_WORKSPACE_ROOT=       # 附件儲存與路徑隔離的根目錄，預設同 AGY_WORKDIR；也是 /new 專案目錄選擇/建立功能的母目錄
@@ -140,6 +143,10 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 > [  /schedule_list  ]    [   /cancel   ]       ← 定時排程與緊急取消
 > ```
 
+> [!TIP]
+> **常駐服務與 Web 應用部署（防終端死鎖規範）**
+> 系統已配置全域技能 `web-service-deployer`（位於 `~/.gemini/config/skills/`）。當請 AI 啟動 Web 服務（如 Vite、React、Flask、FastAPI）或需要手機遠端預覽時，AI 會主動提供 **Nohup 輕量開發** 與 **Docker 容器化** 部署選項，並自動串接 **Cloudflare Quick Tunnel 臨時安全對外連線**，絕不阻塞終端行程。
+
 ### 2. 對話與工作階段
 | 指令 | 說明 |
 |---|---|
@@ -157,7 +164,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | `/effort low\|medium\|high` | 設定推理深度（Reasoning effort） |
 | `/mode plan\|accept-edits` | 切換執行模式（accept-edits 需全域 Full 模式） |
 | `/sandbox on\|off` | 開啟或關閉終端機沙箱限制 |
-| `/verbose detailed\|compact\|silent` | 設定串流進度訊息詳細度 |
+| `/verbose detailed\|compact\|silent` | 設定執行時串流進度詳細度（detailed: 完整展開多行思考日誌, compact: 單行摘要, silent: 靜默不刷新） |
 | `/setdefault` | 經確認後將目前 Chat 設定寫回 `.env` 作為全域預設值 |
 
 ### 4. 額度、上下文與 CLI Passthrough

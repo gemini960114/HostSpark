@@ -90,7 +90,10 @@ AGY_ALLOWED_MODELS="gemini-3.8-flash,gemini-3.7-flash,gemini-3.6-flash"
 # Default reasoning effort for new conversations (low|medium|high, default high)
 AGY_EFFORT=medium
 
-# Streaming progress display mode (full=expanded, compact=one line, delete=removed on completion, default compact)
+# Real-time streaming progress verbosity (detailed=full multi-line thinking, compact=single line summary, silent=off, default detailed)
+AGY_VERBOSE=detailed
+
+# Finished status card behavior on task completion (compact=shows checkmark, delete=removes thinking card, full=keeps elapsed time and logs, default compact)
 AGY_PROGRESS_MODE=compact
 
 # Automatically interrupt and merge the previous task's prompt when a new message arrives (default 1)
@@ -104,7 +107,7 @@ ALLOW_BOT_UPDATE=0
 AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
 # Everything below is optional; leave blank to use the default:
-# AGY_RULE_PROMPT=          # Custom behavior rules prepended to every AGY call (a prompt, not a security control)
+# AGY_RULE_PROMPT=          # Custom behavior rules prepended to every AGY call (supports backgrounding rules for nohup, etc.)
 # AGY_BOT_NAME="HostSpark"  # The name the bot refers to itself as
 # AGY_WAITING_MESSAGE=      # The "please wait" message shown while a task runs
 # AGY_WORKSPACE_ROOT=       # Root directory for attachment storage and path containment; defaults to AGY_WORKDIR. Also the parent directory /new's project-directory picker/creator is confined to
@@ -139,6 +142,10 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 > [  /schedule_list  ]    [   /cancel   ]       ← Scheduled tasks & emergency cancel
 > ```
 
+> [!TIP]
+> **Background Services & Web App Deployment (Zero-blocking Rule)**
+> The system includes a global skill `web-service-deployer` (located at `~/.gemini/config/skills/`). When asking the AI to start web apps (e.g. Vite, React, Flask, FastAPI) or preview remotely on mobile, the AI will proactively offer **Nohup lightweight development** vs **Docker containerization** deployment options, and automatically connect **Cloudflare Quick Tunnel** for secure public access without blocking the terminal session.
+
 ### 2. Conversation & sessions
 | Command | Description |
 |---|---|
@@ -156,7 +163,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 | `/effort low\|medium\|high` | Set reasoning effort |
 | `/mode plan\|accept-edits` | Switch execution mode (`accept-edits` requires global Full mode) |
 | `/sandbox on\|off` | Toggle terminal sandbox restrictions |
-| `/verbose detailed\|compact\|silent` | Set how detailed streaming progress messages are |
+| `/verbose detailed\|compact\|silent` | Set real-time streaming progress verbosity (detailed: expand multi-line thinking, compact: single line summary, silent: off) |
 | `/setdefault` | After confirmation, write this chat's settings back to `.env` as the new global default |
 
 ### 4. Quota, context & CLI passthrough
