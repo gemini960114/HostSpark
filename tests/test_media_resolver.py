@@ -35,6 +35,12 @@ class MediaResolverTests(unittest.TestCase):
             self.assertEqual(paths[0], img_file)
             self.assertNotIn(Path("/etc/shadow"), paths)
 
+    def test_detect_urls_with_markdown_and_brackets(self) -> None:
+        text = "Check this [https://example.com/app.png](https://example.com/app.png) or [broken](https://[invalid-ipv6/test.png)"
+        paths, urls = detect_output_media(text, allowed_dirs=[])
+        # Should not throw ValueError: Invalid IPv6 URL
+        self.assertIsInstance(urls, list)
+
 
 if __name__ == "__main__":
     unittest.main()

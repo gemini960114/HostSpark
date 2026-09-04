@@ -11,7 +11,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-URL_RE = re.compile(r"https?://[^\s<>\"]+")
+URL_RE = re.compile(r"https?://[^\s)\]\"'<>]+", re.IGNORECASE)
 LOCAL_PATH_RE = re.compile(r"(?:/|~/)[A-Za-z0-9_.\- /]+\.[A-Za-z0-9]{2,6}")
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 DOC_EXTENSIONS = {".pdf", ".txt", ".md", ".json", ".csv", ".py", ".log"}
@@ -86,10 +86,13 @@ def detect_output_media(
     # 2. Match URLs
     for match in URL_RE.finditer(text):
         url = match.group(0).rstrip(").,;'\"")
-        parsed = urlparse(url)
-        path = parsed.path.lower()
-        if any(path.endswith(ext) for ext in IMAGE_EXTENSIONS):
-            if is_ssrf_safe_url(url) and url not in matched_urls:
-                matched_urls.append(url)
+        try:
+            parsed = urlparse(url)
+            path = parsed.path.lower()
+            if any(path.endswith(ext) for ext in IMAGE_EXTENSIONS):
+                if is_ssrf_safe_url(url) and url not in matched_urls:
+                    matched_urls.append(url)
+        except Exception:
+            continue
 
     return matched_paths, matched_urls
