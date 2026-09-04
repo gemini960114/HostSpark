@@ -68,6 +68,12 @@ chmod 600 .env
 echo "Validating bot configuration..."
 "$SCRIPT_DIR/venv/bin/python" -m hostspark --check-config
 
+if [[ -d "$SCRIPT_DIR/skills" ]]; then
+    echo "Syncing bundled AGY skills to $USER_HOME/.gemini/config/skills/..."
+    mkdir -p "$USER_HOME/.gemini/config/skills"
+    cp -r "$SCRIPT_DIR/skills/"* "$USER_HOME/.gemini/config/skills/"
+fi
+
 SERVICE_TMP="$(mktemp)"
 trap 'rm -f "$SERVICE_TMP"' EXIT
 cat >"$SERVICE_TMP" <<SYSTEMD_EOF

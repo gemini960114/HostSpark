@@ -145,7 +145,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
 > [!TIP]
 > **常駐服務與 Web 應用部署（防終端死鎖規範）**
-> 系統已配置全域技能 `web-service-deployer`（位於 `~/.gemini/config/skills/`）。當請 AI 啟動 Web 服務（如 Vite、React、Flask、FastAPI）或需要手機遠端預覽時，AI 會主動提供 **Nohup 輕量開發** 與 **Docker 容器化** 部署選項，並自動串接 **Cloudflare Quick Tunnel 臨時安全對外連線**，絕不阻塞終端行程。
+> 專案內建隨附推薦技能 `web-service-deployer` 位於 [`skills/web-service-deployer/`](skills/web-service-deployer/SKILL.md)（執行 `./install.sh` 時會自動同步安裝至 `~/.gemini/config/skills/`）。當請 AI 啟動 Web 服務（如 Vite、React、Flask、FastAPI）或需要手機遠端預覽時，AI 會主動提供 **Nohup 輕量開發** 與 **Docker 容器化** 部署選項，並自動串接 **Cloudflare Quick Tunnel 臨時安全對外連線**，絕不阻塞終端行程。
 
 ### 2. 對話與工作階段
 | 指令 | 說明 |

@@ -144,7 +144,7 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 
 > [!TIP]
 > **Background Services & Web App Deployment (Zero-blocking Rule)**
-> The system includes a global skill `web-service-deployer` (located at `~/.gemini/config/skills/`). When asking the AI to start web apps (e.g. Vite, React, Flask, FastAPI) or preview remotely on mobile, the AI will proactively offer **Nohup lightweight development** vs **Docker containerization** deployment options, and automatically connect **Cloudflare Quick Tunnel** for secure public access without blocking the terminal session.
+> The repository bundles the recommended skill `web-service-deployer` in [`skills/web-service-deployer/`](skills/web-service-deployer/SKILL.md) (automatically installed to `~/.gemini/config/skills/` during `./install.sh`). When asking the AI to start web apps (e.g. Vite, React, Flask, FastAPI) or preview remotely on mobile, the AI proactively offers **Nohup lightweight development** vs **Docker containerization** deployment options, and automatically connects **Cloudflare Quick Tunnel** for secure public access without blocking the terminal session.
 
 ### 2. Conversation & sessions
 | Command | Description |
