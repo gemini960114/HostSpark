@@ -57,6 +57,24 @@ else
     venv/bin/python -m pip install -e .
 fi
 
+echo "Checking multimedia and audio/video processing tools..."
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "Installing ffmpeg for audio/video processing..."
+    sudo apt-get update
+    sudo apt-get install -y ffmpeg
+fi
+
+if ! python3 -c "import edge_tts, PIL" >/dev/null 2>&1; then
+    echo "Installing multimedia tools for AGY (edge-tts, pillow)..."
+    # Deliberately installed into the system/user Python (not venv/): agy is
+    # a standalone compiled binary that shells out to whatever `python3` is
+    # on PATH for its own scripts, so it never sees this project's venv.
+    if ! python3 -m pip install --user edge-tts pillow; then
+        echo "⚠️  Failed to install edge-tts/pillow automatically. AGY's audio/video generation features may not work until you install them manually:"
+        echo "    python3 -m pip install --user edge-tts pillow"
+    fi
+fi
+
 if [[ ! -f ".env" ]]; then
     cp .env.example .env
     chmod 600 .env

@@ -35,6 +35,36 @@ class MediaResolverTests(unittest.TestCase):
             self.assertEqual(paths[0], img_file)
             self.assertNotIn(Path("/etc/shadow"), paths)
 
+    def test_detect_audio_and_video_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            wd = Path(workdir)
+            audio_file = wd / "recording.m4a"
+            audio_file.write_bytes(b"fake audio")
+
+            video_file = wd / "presentation.mp4"
+            video_file.write_bytes(b"fake video")
+
+            text = f"Audio saved at {audio_file}, video saved at {video_file}"
+            paths, urls = detect_output_media(text, allowed_dirs=[wd])
+
+            self.assertIn(audio_file, paths)
+            self.assertIn(video_file, paths)
+
+    def test_safe_extensions_contain_multimedia(self) -> None:
+        from hostspark.telegram.media import (
+            AUDIO_EXTENSIONS,
+            SAFE_EXTENSIONS,
+            VIDEO_EXTENSIONS,
+        )
+
+        for ext in [".m4a", ".mp3", ".wav", ".ogg", ".flac", ".aac"]:
+            self.assertIn(ext, AUDIO_EXTENSIONS)
+            self.assertIn(ext, SAFE_EXTENSIONS)
+
+        for ext in [".mp4", ".mov", ".mkv", ".webm"]:
+            self.assertIn(ext, VIDEO_EXTENSIONS)
+            self.assertIn(ext, SAFE_EXTENSIONS)
+
     def test_detect_urls_with_markdown_and_brackets(self) -> None:
         text = "Check this [https://example.com/app.png](https://example.com/app.png) or [broken](https://[invalid-ipv6/test.png)"
         paths, urls = detect_output_media(text, allowed_dirs=[])

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from hostspark.constants import DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
 from hostspark.core.executor import run_process
 from hostspark.core.sanitizer import build_safe_subprocess_env, redact_sensitive
 
@@ -255,7 +256,7 @@ async def run_pty_command(
     agy_bin: Path,
     workdir: Path,
     slash_command: str,
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> str:
     norm_cmd = slash_command.strip()
     if norm_cmd in {"/usage", "/quota", "/credits"}:

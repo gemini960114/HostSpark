@@ -11,8 +11,12 @@ from typing import TYPE_CHECKING, Callable
 import hostspark.state as state
 from hostspark.core.executor import is_headless_permission_denied
 from hostspark.core.sanitizer import redact_sensitive
-from hostspark.storage.schedule_store import (
+from hostspark.constants import (
+    DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES,
+    DEFAULT_SCHEDULE_CLEANUP_MAX_AGE_DAYS,
     NO_REPORT_SENTINEL,
+)
+from hostspark.storage.schedule_store import (
     DueSchedule,
     render_prompt_variables,
 )
@@ -28,7 +32,7 @@ def cleanup_expired_workspaces_and_uploads(
     workspace_root: Path,
     state_dir: Path,
     schedule_db_path: Path | None = None,
-    max_age_days: int = 30,
+    max_age_days: int = DEFAULT_SCHEDULE_CLEANUP_MAX_AGE_DAYS,
 ) -> int:
     now_ts = datetime.now(timezone.utc).timestamp()
     max_age_seconds = max_age_days * 86400
@@ -119,7 +123,7 @@ async def _execute_due_schedule(application, due: DueSchedule) -> None:
                 await send_formatted_to_chat(
                     application.bot,
                     admin_id,
-                    f"⚠️ **排程 #{schedule.id} 已自動暫停**\n\n連續失敗 3 次，請使用 "
+                    f"⚠️ **排程 #{schedule.id} 已自動暫停**\n\n連續失敗 {DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES} 次，請使用 "
                     f"`/schedule_show {schedule.id}` 查看，再以 `/schedule_resume {schedule.id}` 恢復。",
                 )
 
@@ -141,7 +145,7 @@ async def schedule_loop(application) -> None:
                     config.workspace_root,
                     config.state_db_path,
                     schedule_db_path=config.schedule_db_path,
-                    max_age_days=30,
+                    max_age_days=DEFAULT_SCHEDULE_CLEANUP_MAX_AGE_DAYS,
                 )
                 last_cleanup_date = today_str
                 if count > 0:

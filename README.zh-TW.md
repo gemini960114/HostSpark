@@ -32,13 +32,14 @@ Ubuntu VM（檔案系統／Docker 容器／系統服務／硬體資源）
 - **Per-Chat 獨立狀態管理**：每個 Chat / 使用者各自擁有獨立的 Model、Effort、Mode、Sandbox、Verbose 與 Workspace 設定，互不干擾。
 - **即時串流輸出與動態跳秒心跳計時器**：即時回報思考與工具執行中進度；配備背景跳秒心跳計時器（即使底層指令阻塞無輸出也絕不畫面凍結）、狀態卡片內建快捷 `/cancel` 自救點擊、長時間未回應預警（>30s），並支援自訂結案收尾模式（`full` / `compact` / `delete`）。
 - **對話工作階段管理**：`/new [名稱]` 選擇或建立一個位於 `AGY_WORKSPACE_ROOT` 底下、有名字的專案目錄當作這個 Chat 的工作目錄，並開啟全新 Session；`/clear` 只重置對話。沒用過 `/new` 的 Chat 仍維持各自專屬、匿名的 AGY 工作目錄，彼此對話內容互不干擾。
-- **多模態附件與檔案互動**：支援上傳圖片、文件（`.py`, `.log`, `.pdf`, `.json` 等）直接交由 AGY 分析；AGY 產生的圖片與報表自動透過 Telegram 傳回。
+- **全方位多模態附件互動（影音／語音／圖片／文件）**：原生支援上傳**語音與音訊**（`.m4a`, `.mp3`, `.wav`, `.ogg`, `.flac`, `.aac`, Telegram 錄音語音訊息）、**影片**（`.mp4`, `.mov`, `.mkv`）、**圖片**（`.png`, `.jpg`, `.webp`）與各類**文件程式碼**（`.pdf`, `.txt`, `.py`, `.log` 等）；系統自動儲存並引導 AGY 進行語音聽寫轉錄或深度分析，生成的影音與圖片亦以專屬播放器格式自動回傳。
 - **配額與使用量即時查詢**：`/usage` / `/quota` / `/credits` 提供結構化進度指標（🟢/🟡/🔴/⭐/⚪ 視覺化標籤與進度落差分析）；`/context` 檢視上下文明細。
 - **安全 CLI Passthrough 與兩階段確認**：`/agy [ARGS]` 支援原生 CLI 旗標（強制阻擋 `-i` 互動死鎖，危險指令自動觸發確認）。
 - **主機層級定時任務（Scheduler）**：SQLite 持久化、五欄 cron、執行時變數模板、3次失敗自動熔斷保護；執行結果與熔斷警告會廣播給**全部**已授權管理員（多組 `ALLOWED_USER_IDS` 時每位都會收到）。
 - **任務佇列與 Auto-Interrupt 合併**：全域單一序列化佇列，連續傳送訊息時自動以 `[Update / Follow-up]` 智慧合併前次指示。
 - **進程鎖與崩潰自動恢復**：單一實例鎖（PID 檢查與殘留鎖自動接管）；Bot 重啟時自動恢復未完成任務。
 - **每日自動清理**：排程迴圈每天例行清除 `uploads/`、per-chat 與排程專屬工作目錄裡超過 30 天的暫存檔案，避免長期 24/7 運行塞爆磁碟。
+- **常數與提示詞解耦架構**：將提示詞模板（`prompts.py`）與運作常數（`constants.py`）徹底從業務調度模組解耦，落實「單一事實來源（SSOT）」架構，統一控管熔斷門檻、附件安全白名單、MIME 自動副檔名補正與訊息分割閾值。
 - **機密遮罩與安全隔離**：子程序自動過濾 Telegram Token、User ID 白名單、AWS Key、SSH 私鑰與 JWT。
 
 ---
@@ -172,6 +173,9 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 |---|---|
 | `/usage` / `/quota` / `/credits` | 查詢 AGY 剩餘配額、使用進度與重置時間 |
 | `/context` | 檢視上下文用量、分類 Token 明細與 Checkpoint |
+| `/tokens` | 檢視對話 Token 詳細使用量與上下文指標 |
+| `/compact` | 壓縮目前對話上下文，保留核心決策、狀態與待辦事項 |
+| `/learn [主題]` | 將目前對話經驗、技巧與解決方案提煉為可重複使用的規則與 Skill |
 | `/agy [ARGS...]` | 直接執行原生 `agy` CLI 指令（危險指令自動觸發確認） |
 | `/agy_confirm [TOKEN]` | 二次確認並執行具潛在風險的 agy 指令 |
 | `/agents`, `/changelog`, `/plugins`, `/version`, `/cli_help` | 唯讀查詢 AGY 內建資訊 |
@@ -250,6 +254,20 @@ nano .env
 chmod +x install.sh
 ./install.sh
 ```
+
+### 影音與多媒體支援套件（由 install.sh 自動處理）
+
+若需使用全自動影片生成、神經網路語音旁白（TTS）、影音轉碼或語音聽寫解析：
+- **`ffmpeg` / `ffprobe`**：音訊轉碼、解碼、時長偵測與 1080p 影片壓制。
+- **`edge-tts`**：24kHz 高音質自然繁體中文語音合成（神經網路廣播級人聲）。
+- **`Pillow`**：高畫質多樣版型圖卡排版、動態運鏡逐幀繪製。
+- **`python-telegram-bot`**：原生銜接 Telegram 語音（Voice Notes）、音訊（Audio）與影片串流。
+
+> [!TIP]
+> 執行 `./install.sh` 時腳本會**自動檢測並協助安裝**上述工具，使用者無須手動介入。若在自訂或容器環境手動安裝，僅需一行指令：
+> ```bash
+> sudo apt-get install -y ffmpeg && pip install --user edge-tts pillow
+> ```
 
 ### 驗證設定與測試：
 

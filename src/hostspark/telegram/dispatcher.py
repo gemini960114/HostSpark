@@ -33,15 +33,36 @@ from hostspark.telegram.formatters import (
     send_formatted_response,
     send_formatted_to_chat,
 )
-from hostspark.telegram.media import detect_output_media, fetch_ssrf_safe_media
+from hostspark.constants import (
+    AUDIO_EXTENSIONS,
+    COMPACT_STATUS_SNIPPET_MAX_CHARS,
+    DETAILED_STATUS_SNIPPET_MAX_CHARS,
+    IMAGE_EXTENSIONS,
+    PHOTO_EXTENSIONS,
+    SAFE_EXTENSIONS,
+    STALL_WARNING_THRESHOLD_SECONDS,
+    STATUS_EDIT_DEBOUNCE_SECONDS,
+    TELEGRAM_BOT_FILE_MAX_BYTES,
+    TYPING_HEARTBEAT_EDIT_INTERVAL_SECONDS,
+    TYPING_HEARTBEAT_INTERVAL_SECONDS,
+    VIDEO_EXTENSIONS,
+)
+from hostspark.prompts import (
+    DEFAULT_AUDIO_PROMPT,
+    DEFAULT_DOCUMENT_PROMPT,
+    DEFAULT_IMAGE_PROMPT,
+    DEFAULT_VIDEO_PROMPT,
+    MULTIMODAL_AUDIO_ASR_HINT,
+    MULTIMODAL_IMAGE_HINT,
+    MULTIMODAL_VIDEO_HINT,
+    build_attachment_prompt,
+)
+from hostspark.telegram.media import (
+    detect_output_media,
+    fetch_ssrf_safe_media,
+)
 
 logger = logging.getLogger(__name__)
-
-SAFE_EXTENSIONS = {
-    ".pdf", ".txt", ".md", ".json", ".csv", ".py", ".go", ".js", ".ts",
-    ".yaml", ".yml", ".toml", ".log", ".png", ".jpg", ".jpeg", ".webp", ".gif",
-}
-
 
 import hostspark.core.executor as executor
 
@@ -67,26 +88,92 @@ async def handle_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         photo = message.photo[-1]
         file_obj = await photo.get_file()
         orig_filename = f"photo_{photo.file_unique_id}.jpg"
+    elif message.audio:
+        audio = message.audio
+        file_obj = await audio.get_file()
+        mime = (audio.mime_type or "").lower()
+        if "m4a" in mime or "mp4" in mime:
+            default_ext = ".m4a"
+        elif "wav" in mime:
+            default_ext = ".wav"
+        elif "ogg" in mime or "opus" in mime:
+            default_ext = ".ogg"
+        elif "flac" in mime:
+            default_ext = ".flac"
+        else:
+            default_ext = ".mp3"
+        orig_filename = audio.file_name or f"audio_{audio.file_unique_id}{default_ext}"
+    elif message.voice:
+        voice = message.voice
+        file_obj = await voice.get_file()
+        orig_filename = f"voice_{voice.file_unique_id}.ogg"
+    elif message.video:
+        video = message.video
+        file_obj = await video.get_file()
+        orig_filename = video.file_name or f"video_{video.file_unique_id}.mp4"
+    elif message.video_note:
+        vnote = message.video_note
+        file_obj = await vnote.get_file()
+        orig_filename = f"videonote_{vnote.file_unique_id}.mp4"
 
     if not file_obj:
         return
 
+    stem = Path(orig_filename).stem
     ext = Path(orig_filename).suffix.lower()
+    if not ext:
+        if message.audio:
+            ext = default_ext
+        elif message.voice:
+            ext = ".ogg"
+        elif message.video or message.video_note:
+            ext = ".mp4"
+        elif message.photo:
+            ext = ".jpg"
+        orig_filename = f"{stem}{ext}"
+
     if ext not in SAFE_EXTENSIONS:
         await message.reply_text(
             f"❌ 不支援此副檔名：`{ext}`\n支援格式：`{', '.join(sorted(SAFE_EXTENSIONS))}`"
         )
         return
 
-    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", Path(orig_filename).stem) + ext
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", stem) + ext
     uploads_dir = safe_join(config.workspace_root, "uploads", str(chat_id))
     uploads_dir.mkdir(parents=True, exist_ok=True)
     target_path = uploads_dir / f"{file_obj.file_unique_id[:8]}_{safe_name}"
 
     try:
         await file_obj.download_to_drive(custom_path=target_path)
-        prompt = f"使用者上傳了附件：`{target_path}`\n\n說明：" + (caption if caption else "請分析此附件並提供摘要。")
-        await message.reply_text(f"📎 已儲存附件：`{safe_name}`，正在交由 AGY 分析...")
+        if ext in AUDIO_EXTENSIONS or message.voice:
+            icon = "🎵"
+            kind = "語音/音訊"
+            default_prompt = DEFAULT_AUDIO_PROMPT
+            asr_hint = MULTIMODAL_AUDIO_ASR_HINT
+        elif ext in VIDEO_EXTENSIONS or message.video or message.video_note:
+            icon = "🎬"
+            kind = "影片"
+            default_prompt = DEFAULT_VIDEO_PROMPT
+            asr_hint = MULTIMODAL_VIDEO_HINT
+        elif ext in IMAGE_EXTENSIONS or message.photo:
+            icon = "📸"
+            kind = "圖片"
+            default_prompt = DEFAULT_IMAGE_PROMPT
+            asr_hint = MULTIMODAL_IMAGE_HINT
+        else:
+            icon = "📎"
+            kind = "附件"
+            default_prompt = DEFAULT_DOCUMENT_PROMPT
+            asr_hint = ""
+
+        prompt = build_attachment_prompt(
+            kind=kind,
+            target_path=target_path,
+            caption=caption,
+            default_prompt=default_prompt,
+            hint=asr_hint,
+        )
+        await message.reply_text(f"{icon} 已儲存{kind}：`{safe_name}`，正在交由 AGY 分析...")
         await _enqueue_and_handle_prompt(update, context, prompt)
     except Exception as exc:
         logger.exception("下載或處理附件失敗")
@@ -189,13 +276,13 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
 
     def _format_status_text(draft_text: str, elapsed_sec: int) -> str:
         cancel_hint = "💡 <i>若需中斷可點擊 /cancel</i>"
-        if elapsed_sec >= 30:
+        if elapsed_sec >= STALL_WARNING_THRESHOLD_SECONDS:
             cancel_hint = "⚠️ <i>底層指令執行時間較長，若不需等待可隨時點擊 /cancel 中斷</i>"
 
         if chat_state.verbose == "compact":
             lines = [l.strip() for l in draft_text.splitlines() if l.strip()]
             last_line = lines[-1] if lines else ""
-            snippet = last_line[:200]
+            snippet = last_line[:COMPACT_STATUS_SNIPPET_MAX_CHARS]
             if snippet:
                 return (
                     f"⏳ <b>正在執行：</b> <code>{html.escape(snippet)}</code>\n"
@@ -203,7 +290,7 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
                     f"{cancel_hint}"
                 )
         elif chat_state.verbose != "silent" and draft_text:
-            snippet = draft_text[-800:].strip()
+            snippet = draft_text[-DETAILED_STATUS_SNIPPET_MAX_CHARS:].strip()
             if snippet:
                 return (
                     f"⏳ <b>正在思考與執行：</b>（已耗時 {elapsed_sec}s）\n\n"
@@ -222,7 +309,7 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
         if chat_state.verbose == "silent" or status_msg is None:
             return
         now_ts = asyncio.get_event_loop().time()
-        if now_ts - last_edit_time > 1.8:
+        if now_ts - last_edit_time > STATUS_EDIT_DEBOUNCE_SECONDS:
             last_edit_time = now_ts
             elapsed_sec = int(now_ts - job_start_time)
             text = _format_status_text(draft_text, elapsed_sec)
@@ -234,10 +321,10 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
         while True:
             with suppress(Exception):
                 await application.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-            await asyncio.sleep(4)
+            await asyncio.sleep(TYPING_HEARTBEAT_INTERVAL_SECONDS)
             if status_msg is not None:
                 now_ts = asyncio.get_event_loop().time()
-                if now_ts - last_edit_time >= 3.5:
+                if now_ts - last_edit_time >= TYPING_HEARTBEAT_EDIT_INTERVAL_SECONDS:
                     last_edit_time = now_ts
                     elapsed_sec = int(now_ts - job_start_time)
                     text = _format_status_text(accumulated_draft, elapsed_sec)
@@ -283,17 +370,56 @@ async def _execute_chat_job(application, job: Job, status_msg=None) -> None:
         if result.returncode == 0 and result.stdout:
             allowed_dirs = [config.workspace_root, Path("/tmp"), Path("/var/tmp")]
             media_files, media_urls = detect_output_media(result.stdout, allowed_dirs)
+            limit_mb = TELEGRAM_BOT_FILE_MAX_BYTES // (1024 * 1024)
             for mpath in media_files:
                 try:
+                    if mpath.stat().st_size > TELEGRAM_BOT_FILE_MAX_BYTES:
+                        await application.bot.send_message(
+                            chat_id=chat_id,
+                            text=f"⚠️ 檔案 <code>{html.escape(mpath.name)}</code> 超過 Telegram {limit_mb}MB 上傳限制，請於伺服器端路徑取得：\n<code>{html.escape(str(mpath))}</code>",
+                            parse_mode=ParseMode.HTML,
+                        )
+                        continue
+
                     ext = mpath.suffix.lower()
-                    if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
-                        with open(mpath, "rb") as f:
-                            await application.bot.send_photo(chat_id=chat_id, photo=f, caption=f"📸 產生檔案：`{mpath.name}`")
-                    else:
+                    sent = False
+                    if ext in PHOTO_EXTENSIONS:
+                        try:
+                            with open(mpath, "rb") as f:
+                                await application.bot.send_photo(chat_id=chat_id, photo=f, caption=f"📸 產生檔案：`{mpath.name}`")
+                            sent = True
+                        except Exception as p_exc:
+                            logger.warning("send_photo 失敗，退回 send_document：%s (%s)", mpath, p_exc)
+
+                    elif ext in AUDIO_EXTENSIONS:
+                        try:
+                            with open(mpath, "rb") as f:
+                                await application.bot.send_audio(chat_id=chat_id, audio=f, caption=f"🎵 產生音訊：`{mpath.name}`")
+                            sent = True
+                        except Exception as a_exc:
+                            logger.warning("send_audio 失敗，退回 send_document：%s (%s)", mpath, a_exc)
+
+                    elif ext in VIDEO_EXTENSIONS:
+                        try:
+                            with open(mpath, "rb") as f:
+                                await application.bot.send_video(chat_id=chat_id, video=f, caption=f"🎬 產生影片：`{mpath.name}`")
+                            sent = True
+                        except Exception as v_exc:
+                            logger.warning("send_video 失敗，退回 send_document：%s (%s)", mpath, v_exc)
+
+                    if not sent:
                         with open(mpath, "rb") as f:
                             await application.bot.send_document(chat_id=chat_id, document=f, caption=f"📄 產生檔案：`{mpath.name}`")
                 except Exception as m_exc:
                     logger.warning("傳送輸出媒體失敗：%s (%s)", mpath, m_exc)
+                    err_msg = str(m_exc).lower()
+                    if "too big" in err_msg or "too large" in err_msg or "request entity too large" in err_msg:
+                        with suppress(Exception):
+                            await application.bot.send_message(
+                                chat_id=chat_id,
+                                text=f"⚠️ 檔案 <code>{html.escape(mpath.name)}</code> 超過 Telegram {limit_mb}MB 上傳限制，請於伺服器端路徑取得：\n<code>{html.escape(str(mpath))}</code>",
+                                parse_mode=ParseMode.HTML,
+                            )
 
             for murl in media_urls:
                 try:

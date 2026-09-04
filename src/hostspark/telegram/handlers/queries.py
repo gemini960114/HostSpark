@@ -14,6 +14,7 @@ from hostspark.telegram.auth import _get_chat_id, reject_unauthorized
 logger = logging.getLogger(__name__)
 
 
+from hostspark.prompts import COMPACT_CONTEXT_PROMPT, build_learn_prompt
 from hostspark.telegram.dispatcher import _enqueue_and_handle_prompt
 
 
@@ -24,7 +25,7 @@ async def usage_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     config = state.get_config()
     try:
         async with state.agy_lock:
-            report = await run_pty_command(config.agy_bin, config.agy_workdir, "/quota", timeout_seconds=30)
+            report = await run_pty_command(config.agy_bin, config.agy_workdir, "/quota")
         await status_msg.edit_text(report, parse_mode=ParseMode.HTML)
         state.queue_context_injection(_get_chat_id(update), report)
     except Exception as exc:
@@ -39,7 +40,7 @@ async def context_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     config = state.get_config()
     try:
         async with state.agy_lock:
-            report = await run_pty_command(config.agy_bin, config.agy_workdir, "/context", timeout_seconds=30)
+            report = await run_pty_command(config.agy_bin, config.agy_workdir, "/context")
         await status_msg.edit_text(report)
         state.queue_context_injection(_get_chat_id(update), report)
     except Exception as exc:
@@ -56,13 +57,13 @@ async def tokens_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await reject_unauthorized(update):
         return
-    payload = " ".join(context.args) if context.args else ""
-    prompt = f"請將以下對話內容與技巧整理為可重複使用的規則與 Skill：\n\n{payload}" if payload else "請將本對話的經驗與技巧整理為可重複使用的規則與 Skill。"
+    payload = " ".join(context.args) if context.args else None
+    prompt = build_learn_prompt(payload)
     await _enqueue_and_handle_prompt(update, context, prompt)
 
 
 async def compact_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await reject_unauthorized(update):
         return
-    prompt = "請壓縮目前對話的上下文，保留核心決策、狀態與待辦事項。"
+    prompt = COMPACT_CONTEXT_PROMPT
     await _enqueue_and_handle_prompt(update, context, prompt)

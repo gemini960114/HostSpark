@@ -4,10 +4,14 @@ import html
 import re
 from typing import TYPE_CHECKING
 
+from hostspark.constants import (
+    LONG_MESSAGE_FILE_THRESHOLD_CHARS,
+    TELEGRAM_MESSAGE_MAX_CHUNK_SIZE,
+)
 from hostspark.core.executor import ProcessResult, is_headless_permission_denied
 
 
-def split_markdown_into_chunks(text: str, max_chunk_size: int = 3500) -> list[str]:
+def split_markdown_into_chunks(text: str, max_chunk_size: int = TELEGRAM_MESSAGE_MAX_CHUNK_SIZE) -> list[str]:
     if max_chunk_size < 1:
         raise ValueError("max_chunk_size 必須大於 0")
     if not text:
@@ -121,7 +125,7 @@ def result_message(result: ProcessResult) -> str:
 
 
 async def send_formatted_response(message, text: str) -> None:
-    if len(text) > 7000:
+    if len(text) > LONG_MESSAGE_FILE_THRESHOLD_CHARS:
         try:
             bio = io.BytesIO(text.encode("utf-8"))
             bio.name = f"response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
@@ -133,7 +137,7 @@ async def send_formatted_response(message, text: str) -> None:
         except Exception as exc:
             logger.warning("以檔案發送超長訊息失敗，退回分段文字發送：%s", exc)
 
-    for chunk in split_markdown_into_chunks(text, max_chunk_size=3500):
+    for chunk in split_markdown_into_chunks(text):
         try:
             await message.reply_text(
                 md_to_telegram_html(chunk),
@@ -149,7 +153,7 @@ async def send_formatted_response(message, text: str) -> None:
 
 
 async def send_formatted_to_chat(bot, chat_id: int, text: str) -> None:
-    if len(text) > 7000:
+    if len(text) > LONG_MESSAGE_FILE_THRESHOLD_CHARS:
         try:
             bio = io.BytesIO(text.encode("utf-8"))
             bio.name = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
@@ -162,7 +166,7 @@ async def send_formatted_to_chat(bot, chat_id: int, text: str) -> None:
         except Exception as exc:
             logger.warning("排程超長訊息檔案傳送失敗，改用文字：%s", exc)
 
-    for chunk in split_markdown_into_chunks(text, max_chunk_size=3500):
+    for chunk in split_markdown_into_chunks(text):
         try:
             await bot.send_message(
                 chat_id=chat_id,

@@ -11,6 +11,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 import hostspark.state as state
+from hostspark.constants import (
+    DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES,
+    SCHEDULE_MAX_EXPANSION_PROMPT_CHARS,
+)
 from hostspark.core.sanitizer import redact_sensitive
 from hostspark.storage.schedule_store import (
     Schedule,
@@ -37,7 +41,7 @@ def _local_time(value: datetime | None, timezone_name: str) -> str:
 def _schedule_status(schedule: Schedule) -> str:
     if schedule.enabled:
         return "啟用"
-    if schedule.consecutive_failures >= 3:
+    if schedule.consecutive_failures >= DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES:
         return "已自動暫停"
     return "暫停"
 
@@ -140,8 +144,10 @@ async def _run_schedule_add_flow(
         await status_message.edit_text(result_message(result))
         return
     prompt_template = result.stdout.strip()
-    if len(prompt_template) > 8_000:
-        await status_message.edit_text("❌ AGY 整理後的 prompt 超過 8000 個字元，請縮短原始要求。")
+    if len(prompt_template) > SCHEDULE_MAX_EXPANSION_PROMPT_CHARS:
+        await status_message.edit_text(
+            f"❌ AGY 整理後的 prompt 超過 {SCHEDULE_MAX_EXPANSION_PROMPT_CHARS} 個字元，請縮短原始要求。"
+        )
         return
 
     payload = {

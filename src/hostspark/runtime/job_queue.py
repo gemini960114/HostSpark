@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 
+from hostspark.constants import DEFAULT_JOB_QUEUE_MAXSIZE
+from hostspark.prompts import compose_followup_prompt
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +27,7 @@ class Job:
 
 
 class JobQueue:
-    def __init__(self, maxsize: int = 50):
+    def __init__(self, maxsize: int = DEFAULT_JOB_QUEUE_MAXSIZE):
         self._maxsize = maxsize
         self._queue: asyncio.Queue[Job] = asyncio.Queue(maxsize=maxsize)
         self._active_job: Job | None = None
@@ -75,7 +78,7 @@ class JobQueue:
 
             if parts:
                 was_merged = True
-                final_prompt = "\n\n".join(parts) + f"\n\n[Update / Follow-up]:\n{prompt}"
+                final_prompt = compose_followup_prompt(parts, prompt)
                 self.cancel_for_chat(chat_id)
 
         job = Job(

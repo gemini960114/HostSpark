@@ -17,10 +17,16 @@ _SCHEDULE_INTENT_RE = re.compile(
 )
 
 
-def compose_agy_prompt(user_text: str, rule_prompt: str) -> str:
-    if not rule_prompt:
-        return user_text
-    return f"{rule_prompt}\n\n使用者請求：\n{user_text}"
+from hostspark.prompts import compose_agy_prompt
+
+__all__ = [
+    "EFFORT_VARIANT_MODEL_BASES",
+    "compose_agy_prompt",
+    "detect_schedule_intent",
+    "model_has_baked_in_effort",
+    "resolve_model_and_effort_args",
+    "strip_effort_suffix",
+]
 
 
 def model_has_baked_in_effort(model: str | None) -> bool:

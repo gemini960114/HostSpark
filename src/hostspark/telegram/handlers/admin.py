@@ -11,6 +11,7 @@ from telegram.ext import ContextTypes
 
 import hostspark.state as state
 import hostspark.core.executor as executor
+from hostspark.constants import DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
 from hostspark.core.sanitizer import build_safe_subprocess_env
 from hostspark.telegram.auth import reject_unauthorized
 
@@ -74,7 +75,7 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [git_bin, "pull", "origin", "main"],
         cwd=state.BASE_DIR,
         env=env,
-        timeout_seconds=30,
+        timeout_seconds=DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
         max_output_bytes=100_000,
     )
 

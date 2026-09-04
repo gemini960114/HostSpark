@@ -30,13 +30,14 @@ Ubuntu VM (filesystem / Docker containers / system services / hardware resources
 - **Independent per-chat state**: each chat/user has its own Model, Effort, Mode, Sandbox, Verbose, and Workspace settings that never interfere with each other.
 - **Live stream feedback & active heartbeat timer**: reports thinking/tool-execution progress in real time with an active elapsed-seconds heartbeat timer (eliminating frozen screens even during silent or blocking subcommands), clickable `/cancel` self-rescue hints, stall warning alerts (>30s), and configurable end-of-run card modes (`full` / `compact` / `delete`).
 - **Conversation session management**: `/new [name]` picks or creates a named project directory (confined under `AGY_WORKSPACE_ROOT`) as the chat's working directory and starts a fresh session; `/clear` resets just the conversation. Chats that never use `/new` keep their own dedicated, anonymous AGY working directory so conversations never bleed into each other.
-- **Multimodal attachments & file interaction**: upload images or documents (`.py`, `.log`, `.pdf`, `.json`, etc.) directly for AGY to analyze; images and reports AGY produces are sent back automatically via Telegram.
+- **Comprehensive multimodal attachments (Audio, Voice, Video, Images, Docs)**: upload **audio files** (`.m4a`, `.mp3`, `.wav`, `.ogg`, `.flac`, `.aac`, Telegram voice notes), **videos** (`.mp4`, `.mov`, `.mkv`), **images** (`.png`, `.jpg`, `.webp`), and **documents/code** (`.pdf`, `.txt`, `.py`, `.log`, etc.) directly for AGY to analyze or transcribe; media and files AGY generates are returned with native Telegram audio/video player cards.
 - **Real-time quota & usage lookups**: `/usage` / `/quota` / `/credits` provide structured progress indicators (🟢/🟡/🔴/⭐/⚪ visual tags with pace-vs-time-elapsed analysis); `/context` shows context usage details.
 - **Secure CLI passthrough with two-phase confirmation**: `/agy [ARGS]` supports native CLI flags (interactive `-i` deadlocks are hard-blocked; dangerous commands trigger a confirmation step automatically).
 - **Host-level scheduler**: SQLite-backed persistence, standard 5-field cron, runtime variable templates, and an auto-circuit-breaker after 3 consecutive failures; execution results and circuit-breaker warnings are broadcast to **every** authorized admin (all of them, if you configure multiple `ALLOWED_USER_IDS`).
 - **Job queue with auto-interrupt merging**: a single global serialized queue; sending a follow-up message while a task is running automatically merges it into the active task as `[Update / Follow-up]` instead of queuing separately.
 - **Instance lock & crash auto-recovery**: a single-instance lock (with stale-lock takeover) plus automatic recovery of interrupted tasks after a bot restart.
 - **Daily automatic cleanup**: the scheduler loop routinely purges `uploads/`, per-chat, and per-schedule working-directory files older than 30 days, so long-running 24/7 operation doesn't fill up disk.
+- **Decoupled architecture & unified constants**: prompts (`prompts.py`) and operational constants (`constants.py`) are strictly decoupled from core dispatchers, enforcing Single-Source-of-Truth (SSOT) configuration for circuit breaker limits, safe upload whitelists, MIME auto-extension derivation, and message thresholds.
 - **Secret scrubbing & sandboxing**: subprocesses automatically strip the Telegram Token, the User ID allowlist, AWS keys, SSH private keys, and JWTs from their environment.
 
 ---
@@ -171,6 +172,9 @@ AGY_SCHEDULE_TIMEZONE=Asia/Taipei
 |---|---|
 | `/usage` / `/quota` / `/credits` | Check AGY's remaining quota, usage pace, and reset time |
 | `/context` | View context usage, categorized token breakdown, and checkpoint info |
+| `/tokens` | View detailed conversation token metrics and token breakdown |
+| `/compact` | Compact conversation context, retaining key decisions, state, and action items |
+| `/learn [topic]` | Distill conversation experience and insights into reusable skills/rules |
 | `/agy [ARGS...]` | Run a native `agy` CLI command directly (dangerous commands trigger a confirmation) |
 | `/agy_confirm [TOKEN]` | Confirm and run a previously flagged, potentially risky agy command |
 | `/agents`, `/changelog`, `/plugins`, `/version`, `/cli_help` | Read-only lookups of AGY's built-in info |
@@ -249,6 +253,20 @@ nano .env
 chmod +x install.sh
 ./install.sh
 ```
+
+### Multimedia & Audio/Video Support Tools (Automated by install.sh)
+
+For programmatic video rendering, neural speech synthesis (TTS), media transcoding, and audio parsing:
+- **`ffmpeg` / `ffprobe`**: Audio/video transcoding, metadata probing, and 1080p MP4 compression.
+- **`edge-tts`**: 24kHz studio-quality natural neural Traditional Chinese speech synthesis.
+- **`Pillow`**: Layout archetype rendering and dynamic Ken Burns motion frames.
+- **`python-telegram-bot`**: Native Telegram Audio, Voice note, and Video stream filtering.
+
+> [!TIP]
+> `./install.sh` **automatically detects and installs** these tools during setup. If installing manually in custom environments:
+> ```bash
+> sudo apt-get install -y ffmpeg && pip install --user edge-tts pillow
+> ```
 
 ### Verify the configuration and run tests:
 

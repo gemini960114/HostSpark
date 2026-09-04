@@ -1,6 +1,5 @@
 import ipaddress
 import logging
-import os
 import re
 import socket
 from pathlib import Path
@@ -13,8 +12,28 @@ logger = logging.getLogger(__name__)
 
 URL_RE = re.compile(r"https?://[^\s)\]\"'<>]+", re.IGNORECASE)
 LOCAL_PATH_RE = re.compile(r"(?:/|~/)[A-Za-z0-9_.\- /]+\.[A-Za-z0-9]{2,6}")
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
-DOC_EXTENSIONS = {".pdf", ".txt", ".md", ".json", ".csv", ".py", ".log"}
+from hostspark.constants import (
+    AUDIO_EXTENSIONS,
+    DOC_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    SAFE_EXTENSIONS,
+    SSRF_MEDIA_DOWNLOAD_MAX_BYTES,
+    SSRF_MEDIA_DOWNLOAD_TIMEOUT_SECONDS,
+    VIDEO_EXTENSIONS,
+)
+
+__all__ = [
+    "AUDIO_EXTENSIONS",
+    "DOC_EXTENSIONS",
+    "IMAGE_EXTENSIONS",
+    "SAFE_EXTENSIONS",
+    "VIDEO_EXTENSIONS",
+    "SSRF_MEDIA_DOWNLOAD_MAX_BYTES",
+    "SSRF_MEDIA_DOWNLOAD_TIMEOUT_SECONDS",
+    "detect_output_media",
+    "fetch_ssrf_safe_media",
+    "is_ssrf_safe_url",
+]
 
 
 def is_ssrf_safe_url(url_str: str) -> bool:
@@ -49,14 +68,17 @@ def is_ssrf_safe_url(url_str: str) -> bool:
         return False
 
 
-async def fetch_ssrf_safe_media(url_str: str, timeout_seconds: float = 10.0) -> bytes | None:
+async def fetch_ssrf_safe_media(
+    url_str: str,
+    timeout_seconds: float = SSRF_MEDIA_DOWNLOAD_TIMEOUT_SECONDS,
+) -> bytes | None:
     if not is_ssrf_safe_url(url_str):
         return None
     try:
         async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=False) as client:
             resp = await client.get(url_str)
             if resp.status_code == 200:
-                if len(resp.content) <= 10_000_000:
+                if len(resp.content) <= SSRF_MEDIA_DOWNLOAD_MAX_BYTES:
                     return resp.content
     except Exception as exc:
         logger.debug("下載媒體失敗：%s (%s)", url_str, exc)

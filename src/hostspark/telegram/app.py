@@ -16,6 +16,7 @@ from telegram.ext import (
 
 import hostspark.state as state
 from hostspark.config import BotConfig
+from hostspark.constants import DEFAULT_SCHEDULE_CLEANUP_MAX_AGE_DAYS
 from hostspark.runtime.job_queue import Job
 from hostspark.runtime.scheduler import (
     cleanup_expired_workspaces_and_uploads,
@@ -110,7 +111,7 @@ async def post_init(application) -> None:
         config.workspace_root,
         config.state_db_path,
         schedule_db_path=config.schedule_db_path,
-        max_age_days=30,
+        max_age_days=DEFAULT_SCHEDULE_CLEANUP_MAX_AGE_DAYS,
     )
 
 
@@ -204,7 +205,15 @@ def build_application(config: BotConfig | None = None) -> Any:
     app.add_handler(CallbackQueryHandler(global_callback_query_handler))
 
     # Attachments & Messages
-    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_attachment))
+    attachment_filter = (
+        filters.PHOTO
+        | filters.Document.ALL
+        | filters.AUDIO
+        | filters.VOICE
+        | filters.VIDEO
+        | filters.VIDEO_NOTE
+    )
+    app.add_handler(MessageHandler(attachment_filter, handle_attachment))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     return app

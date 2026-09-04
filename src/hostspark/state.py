@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hostspark.config import BotConfig
+from hostspark.constants import DEFAULT_JOB_QUEUE_MAXSIZE, PENDING_CONTEXT_TTL_SECONDS
 from hostspark.runtime.instance_lock import InstanceLock
 from hostspark.runtime.job_queue import JobQueue
 from hostspark.runtime.pending_actions import PendingActionStore
@@ -23,7 +24,7 @@ CONFIG: BotConfig | None = None
 SCHEDULE_STORE: ScheduleStore | None = None
 CHAT_STATE_STORE: ChatStateStore | None = None
 PENDING_ACTIONS = PendingActionStore()
-JOB_QUEUE = JobQueue(maxsize=50)
+JOB_QUEUE = JobQueue(maxsize=DEFAULT_JOB_QUEUE_MAXSIZE)
 INSTANCE_LOCK: InstanceLock | None = None
 agy_lock = asyncio.Lock()
 
@@ -37,7 +38,7 @@ PENDING_PROJECT_INIT: set[int] = set()
 # Suppresses --continue on the very next run_agy() call.
 PENDING_CLEAR: set[int] = set()
 
-_PENDING_CONTEXT_TTL_SECONDS = 600
+_PENDING_CONTEXT_TTL_SECONDS = PENDING_CONTEXT_TTL_SECONDS
 _PENDING_CONTEXT: dict[int, tuple[float, str]] = {}
 
 

@@ -10,7 +10,30 @@ from croniter import CroniterError, croniter
 
 
 UTC = timezone.utc
-NO_REPORT_SENTINEL = "[NO_REPORT]"
+from hostspark.constants import (
+    DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES,
+    NO_REPORT_SENTINEL,
+    SCHEDULE_CLAIM_BATCH_LIMIT,
+    SCHEDULE_MAX_ORIGINAL_PROMPT_CHARS,
+)
+from hostspark.prompts import build_prompt_expansion_request
+
+__all__ = [
+    "ScheduleError",
+    "Schedule",
+    "DueSchedule",
+    "ScheduleStore",
+    "get_timezone",
+    "normalize_cron",
+    "next_run_time",
+    "parse_schedule_add_payload",
+    "render_prompt_variables",
+    # Re-exported for backward compatibility (other modules and tests import
+    # these from here rather than from their new homes in hostspark.constants
+    # / hostspark.prompts).
+    "NO_REPORT_SENTINEL",
+    "build_prompt_expansion_request",
+]
 
 
 class ScheduleError(ValueError):
@@ -94,29 +117,9 @@ def parse_schedule_add_payload(text: str) -> tuple[str, str]:
     request = parts[5].strip()
     if not request:
         raise ScheduleError("任務內容不可留空")
-    if len(request) > 4_000:
-        raise ScheduleError("原始任務不可超過 4000 個字元")
+    if len(request) > SCHEDULE_MAX_ORIGINAL_PROMPT_CHARS:
+        raise ScheduleError(f"原始任務不可超過 {SCHEDULE_MAX_ORIGINAL_PROMPT_CHARS} 個字元")
     return cron_expr, request
-
-
-def build_prompt_expansion_request(
-    original_prompt: str, cron_expr: str, timezone_name: str
-) -> str:
-    return f"""你是定時任務提示詞編輯器。請把下方使用者要求整理成一段可重複、獨立執行的完整 AGY 任務提示詞。
-
-規則：
-1. 不要現在執行任務，只重寫提示詞。
-2. 保留使用者意圖，不自行擴張權限、操作範圍或通知頻率。
-3. 明確說明每次應查詢、判斷、輸出什麼；資訊不足時採保守做法。
-4. 可使用這些執行時變數：{{{{now}}}}、{{{{date}}}}、{{{{time}}}}、{{{{timezone}}}}、{{{{scheduled_at}}}}、{{{{run_number}}}}。
-5. 使用者原本寫下的其他 {{{{變數}}}} 必須原樣保留，不可猜測其值。
-6. 若使用者要求「沒有異常就不通知」之類條件，請規定無須通知時只輸出 {NO_REPORT_SENTINEL}。
-7. 不要輸出 Markdown code fence、前言、分析或說明，只輸出整理後的提示詞。
-
-cron：{cron_expr}
-時區：{timezone_name}
-使用者要求：
-{original_prompt}"""
 
 
 def render_prompt_variables(
@@ -306,7 +309,9 @@ class ScheduleStore:
             )
         return cursor.rowcount == 1
 
-    def claim_due(self, now: datetime | None = None, limit: int = 10) -> list[DueSchedule]:
+    def claim_due(
+        self, now: datetime | None = None, limit: int = SCHEDULE_CLAIM_BATCH_LIMIT
+    ) -> list[DueSchedule]:
         current = now or datetime.now(UTC)
         claimed: list[DueSchedule] = []
         with self._connection() as connection:
@@ -352,7 +357,7 @@ class ScheduleStore:
         success: bool,
         error: str | None = None,
         finished_at: datetime | None = None,
-        max_failures: int = 3,
+        max_failures: int = DEFAULT_CIRCUIT_BREAKER_MAX_FAILURES,
     ) -> bool:
         current = finished_at or datetime.now(UTC)
         with self._connection() as connection:
