@@ -1,4 +1,4 @@
-croniter==6.2.4
+croniter==7.0.0
 python-telegram-bot==22.8
 python-dotenv==1.2.3
 tzdata==2026.3
